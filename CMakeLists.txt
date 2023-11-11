@@ -29,3 +29,4 @@ endif()
 
 # Hardware-specific examples in subdirectories:
 add_subdirectory(scanner)
+add_subdirectory(pico_rc pico_rc)
