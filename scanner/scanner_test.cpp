@@ -5,7 +5,7 @@
 #include "hardware/uart.h"
 #include "pico/rc.h"
 
-const int SAMPLE_PERIOD_MS = 1000;
+const int SAMPLE_PERIOD_MS = 100;
 const int SERVO_PIN = 1;
 const int TRIG_PIN = 25;
 const int ECHO_PIN = 3;
@@ -41,7 +41,7 @@ bool sampler_callback(repeating_timer_t *timer)
     }
 
     gpio_set_mask(1 << TRIG_PIN);
-    sleep_ms(20);
+    busy_wait_ms(20);
     gpio_clr_mask(1 << TRIG_PIN);
     return true;
 }
@@ -68,19 +68,30 @@ int main()
     gpio_set_dir(TRIG_PIN, GPIO_OUT);
     gpio_set_dir(ECHO_PIN, GPIO_IN);
 
+    printf("GPIO Initialized");
+
     repeating_timer_t sampler_timer;
-    add_repeating_timer_ms(-SAMPLE_PERIOD_MS, sampler_callback, NULL, &sampler_timer);
+    if(!add_repeating_timer_ms(-SAMPLE_PERIOD_MS, sampler_callback, NULL, &sampler_timer))
+    {
+        printf("Repeating timer failed");
+    }
 
     gpio_set_irq_enabled_with_callback(ECHO_PIN, GPIO_IRQ_EDGE_RISE, true, echo_rising_callback);
     gpio_set_irq_enabled_with_callback(ECHO_PIN, GPIO_IRQ_EDGE_FALL, true, echo_falling_callback);
+
+    printf("Interrupts Initialized");
 
     // Run loop endlessly
     while(true)
     {
         // Wait for new data
         while(!new_sweep)
-            tight_loop_contents();
-        for(std::size_t i = 0; i <= dist_mm.size(); ++i)
+        {
+            sleep_ms(1);
+        }
+        new_sweep = false;
+        
+        for(std::size_t i = 0; i < dist_mm.size(); ++i)
         {
             printf("%d:%d,", i, dist_mm[i]);
         }
