@@ -28,7 +28,7 @@ long map(long x, long in_min, long in_max, long out_min, long out_max)
 
 bool sampler_callback(repeating_timer_t *timer)
 {
-    pwm_set_chan_level(servo_slice, servo_chan, map(angle, 0, 180, 1000, 2000));
+    pwm_set_chan_level(servo_slice, servo_chan, map(angle, 0, 180, 900, 2100));
 
     if(sweep_left)
     {
@@ -109,7 +109,7 @@ int main()
         // Wait for new data
         while(!new_sweep)
         {
-            sleep_ms(1);
+            tight_loop_contents();
         }
         new_sweep = false;
         
