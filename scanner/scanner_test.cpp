@@ -7,9 +7,10 @@
 #include "hardware/clocks.h"
 
 const int SAMPLE_PERIOD_MS = 100;
+const int LED_PIN = 25;
 const int SERVO_PIN = 0;
-const int TRIG_PIN = 25;
-const int ECHO_PIN = 3;
+const int TRIG_PIN = 1;
+const int ECHO_PIN = 2;
 
 static uint servo_slice, servo_chan;
 
@@ -47,7 +48,7 @@ bool sampler_callback(repeating_timer_t *timer)
         }
     }
 
-    gpio_set_mask(1 << TRIG_PIN);
+    gpio_set_mask((1 << TRIG_PIN) | (1 << LED_PIN));
     busy_wait_ms(20);
     gpio_clr_mask(1 << TRIG_PIN);
     return true;
@@ -55,6 +56,7 @@ bool sampler_callback(repeating_timer_t *timer)
 
 void echo_rising_callback(uint gpio, uint32_t events)
 {   
+    gpio_clr_mask(1 << LED_PIN);
     t_rise = time_us_64();
 }
 
@@ -70,10 +72,12 @@ int main()
     gpio_init(SERVO_PIN);
     gpio_init(TRIG_PIN);
     gpio_init(ECHO_PIN);
+    gpio_init(LED_PIN);
 
     gpio_set_dir(SERVO_PIN, GPIO_OUT);
     gpio_set_dir(TRIG_PIN, GPIO_OUT);
     gpio_set_dir(ECHO_PIN, GPIO_IN);
+    gpio_set_dir(LED_PIN, GPIO_OUT);
 
     gpio_set_function(SERVO_PIN, GPIO_FUNC_PWM);
     servo_slice = pwm_gpio_to_slice_num(SERVO_PIN);
@@ -98,8 +102,8 @@ int main()
         printf("Repeating timer failed");
     }
 
-    gpio_set_irq_enabled_with_callback(ECHO_PIN, GPIO_IRQ_EDGE_RISE, true, echo_rising_callback);
-    gpio_set_irq_enabled_with_callback(ECHO_PIN, GPIO_IRQ_EDGE_FALL, true, echo_falling_callback);
+    gpio_set_irq_enabled_with_callback(ECHO_PIN, GPIO_IRQ_EDGE_RISE, true, &echo_rising_callback);
+    gpio_set_irq_enabled_with_callback(ECHO_PIN, GPIO_IRQ_EDGE_FALL, true, &echo_falling_callback);
 
     printf("Interrupts Initialized");
 
