@@ -3,15 +3,17 @@
 #include <vector>
 #include "pico/stdlib.h"
 #include "hardware/uart.h"
-#include "pico/rc.h"
+#include "hardware/pwm.h"
+#include "hardware/clocks.h"
 
 const int SAMPLE_PERIOD_MS = 100;
-const int SERVO_PIN = 1;
+const int SERVO_PIN = 0;
 const int TRIG_PIN = 25;
 const int ECHO_PIN = 3;
 
+static uint servo_slice, servo_chan;
+
 const int SPEED_OF_SOUND_CM_MS = 34;
-static rc_servo servo = rc_servo_init(SERVO_PIN);
 static uint angle = 0;
 static bool sweep_left = false;
 static uint64_t t_rise;
@@ -19,10 +21,15 @@ static uint64_t t_rise;
 std::vector<uint32_t> dist_mm(181);
 static bool new_sweep = false;
 
+long map(long x, long in_min, long in_max, long out_min, long out_max)
+{
+  return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+}
 
 bool sampler_callback(repeating_timer_t *timer)
 {
-    rc_servo_set_angle(&servo, angle);
+    pwm_set_chan_level(servo_slice, servo_chan, map(angle, 0, 180, 1000, 2000));
+
     if(sweep_left)
     {
         --angle;
@@ -67,6 +74,21 @@ int main()
     gpio_set_dir(SERVO_PIN, GPIO_OUT);
     gpio_set_dir(TRIG_PIN, GPIO_OUT);
     gpio_set_dir(ECHO_PIN, GPIO_IN);
+
+    gpio_set_function(SERVO_PIN, GPIO_FUNC_PWM);
+    servo_slice = pwm_gpio_to_slice_num(SERVO_PIN);
+    servo_chan = pwm_gpio_to_channel(SERVO_PIN);
+
+    pwm_config config = pwm_get_default_config();
+    uint32_t clk = clock_get_hz(clk_sys); // clk_sys
+    // aim at 50 Hz with counter running to 20 000 
+    uint32_t div = clk / (20000 * 50); 
+    // Set divider to get 50 Hz
+    pwm_config_set_clkdiv(&config, (float)div);
+    // Set wrap to count to 20000, so the period is 20 ms
+    pwm_config_set_wrap(&config, 20000); 
+    // Load the configuration into our PWM slice, and set it running.
+    pwm_init(servo_slice, &config, true);
 
     printf("GPIO Initialized");
 

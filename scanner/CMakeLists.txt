@@ -3,7 +3,7 @@ add_executable(scanner_test scanner_test.cpp)
 # pull in common dependencies
 target_link_libraries(scanner_test 
     pico_stdlib 
-    pico_rc
+    hardware_pwm
 )
 
 # enable usb output, disable uart output
