@@ -1,6 +1,7 @@
 #include <cstdlib>
 #include <cstdio>
 #include <vector>
+#define _USE_MATH_DEFINES
 #include <cmath>
 #include "pico/stdlib.h"
 #include "hardware/uart.h"
@@ -15,12 +16,18 @@ const int ECHO_PIN = 2;
 
 static uint servo_slice, servo_chan;
 
+const int8_t N = 100;
+const int8_t MIN_ANGLE = -80;
+const int16_t MIN_US = 900;
+const int8_t MAX_ANGLE = 80;
+const int16_t MAX_US = 2100;
+
 const float SPEED_OF_SOUND_MM_US = 0.343;
-static uint angle = 0;
+static uint n = 0;
 static bool sweep_left = false;
 static uint64_t t_rise;
 
-std::vector<float> dist_mm(181);
+std::vector<float> dist_mm(N);
 static bool new_sweep = false;
 
 long map(long x, long in_min, long in_max, long out_min, long out_max)
@@ -30,19 +37,19 @@ long map(long x, long in_min, long in_max, long out_min, long out_max)
 
 bool sampler_callback(repeating_timer_t *timer)
 {
-    pwm_set_chan_level(servo_slice, servo_chan, map(angle, 0, 180, 900, 2100));
+    pwm_set_chan_level(servo_slice, servo_chan, map(n, 0, N, MIN_US, MAX_US));
 
     if(sweep_left)
     {
-        --angle;
-        if(angle == 0)
+        --n;
+        if(n == 0)
         {
             new_sweep = true;
             sweep_left = false;
         }
     } else {
-        ++angle;
-        if(angle == 180)
+        ++n;
+        if(n == N)
         {
             new_sweep = true;
             sweep_left = true;
@@ -61,11 +68,45 @@ void echo_callback(uint gpio, uint32_t events)
     if(events & GPIO_IRQ_EDGE_FALL)
     {   
         float dist_total = static_cast<float>(time_us_64() - t_rise) * SPEED_OF_SOUND_MM_US;
-        dist_mm[angle] = dist_total / 2.0;
+        dist_mm[n] = dist_total / 2.0;
     } else {
         gpio_clr_mask(1 << LED_PIN);
         t_rise = time_us_64();
     }
+}
+
+
+std::vector<float> moving_average(std::vector<float>& in, float alpha)
+{
+    std::vector<float> out(in.size(), 0.0);
+    float accu1, accu2 = 0;
+    size_t max_idx = in.size() - 1;
+    for(size_t i = 0; i < in.size(); ++i)
+    {
+
+        accu1 = (alpha * in[i]) + ((1.0 - alpha) * accu1);
+        accu2 = (alpha * in[max_idx-i]) + ((1.0 - alpha) * accu2);
+
+        out[i] += accu1 / 2.0;
+        out[max_idx-i] += accu2 / 2.0;
+    }
+    return out;
+}
+
+
+size_t max_idx(std::vector<float>& in)
+{
+    size_t idx = 0;
+    float max = in[0];
+    for(size_t i = 0; i < in.size(); ++i)
+    {
+        if(in[i] > max)
+        {
+            idx = i;
+            max = in[i];
+        }
+    }
+    return idx;
 }
 
 
@@ -121,8 +162,10 @@ int main()
         
         for(std::size_t i = 0; i < dist_mm.size(); ++i)
         {
-            printf("%d:%f,", i, dist_mm[i]);
+            int theta_d = map(i, 0, N, MIN_ANGLE, MAX_ANGLE);
+            printf("%d:%f,", theta_d,  dist_mm[i]);
         }
-        printf("\n");
+        auto smoothed = moving_average(dist_mm, 0.7);
+        printf(";%d\n", max_idx(smoothed));
     }
 }
