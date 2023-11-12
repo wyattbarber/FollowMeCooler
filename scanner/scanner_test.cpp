@@ -1,6 +1,7 @@
 #include <cstdlib>
 #include <cstdio>
 #include <vector>
+#include <cmath>
 #include "pico/stdlib.h"
 #include "hardware/uart.h"
 #include "hardware/pwm.h"
@@ -14,12 +15,12 @@ const int ECHO_PIN = 2;
 
 static uint servo_slice, servo_chan;
 
-const int SPEED_OF_SOUND_CM_MS = 34;
+const float SPEED_OF_SOUND_MM_US = 0.343;
 static uint angle = 0;
 static bool sweep_left = false;
 static uint64_t t_rise;
 
-std::vector<uint32_t> dist_mm(181);
+std::vector<float> dist_mm(181);
 static bool new_sweep = false;
 
 long map(long x, long in_min, long in_max, long out_min, long out_max)
@@ -54,17 +55,19 @@ bool sampler_callback(repeating_timer_t *timer)
     return true;
 }
 
-void echo_rising_callback(uint gpio, uint32_t events)
-{   
-    gpio_clr_mask(1 << LED_PIN);
-    t_rise = time_us_64();
+
+void echo_callback(uint gpio, uint32_t events)
+{
+    if(events & GPIO_IRQ_EDGE_FALL)
+    {   
+        float dist_total = static_cast<float>(time_us_64() - t_rise) * SPEED_OF_SOUND_MM_US;
+        dist_mm[angle] = dist_total / 2.0;
+    } else {
+        gpio_clr_mask(1 << LED_PIN);
+        t_rise = time_us_64();
+    }
 }
 
-void echo_falling_callback(uint gpio, uint32_t events)
-{
-    uint64_t tof_us = time_us_64() - t_rise;
-    dist_mm[angle] = (tof_us / SPEED_OF_SOUND_CM_MS) / 200;
-}
 
 int main()
 {
@@ -102,8 +105,7 @@ int main()
         printf("Repeating timer failed");
     }
 
-    gpio_set_irq_enabled_with_callback(ECHO_PIN, GPIO_IRQ_EDGE_RISE, true, &echo_rising_callback);
-    gpio_set_irq_enabled_with_callback(ECHO_PIN, GPIO_IRQ_EDGE_FALL, true, &echo_falling_callback);
+    gpio_set_irq_enabled_with_callback(ECHO_PIN, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true, &echo_callback);
 
     printf("Interrupts Initialized");
 
@@ -119,7 +121,7 @@ int main()
         
         for(std::size_t i = 0; i < dist_mm.size(); ++i)
         {
-            printf("%d:%d,", i, dist_mm[i]);
+            printf("%d:%f,", i, dist_mm[i]);
         }
         printf("\n");
     }
