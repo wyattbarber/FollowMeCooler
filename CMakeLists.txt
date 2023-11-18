@@ -30,4 +30,5 @@ endif()
 # Hardware-specific examples in subdirectories:
 add_subdirectory(scanner)
 add_subdirectory(gps)
+add_subdirectory(ble)
 
