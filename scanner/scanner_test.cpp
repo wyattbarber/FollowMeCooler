@@ -33,7 +33,7 @@ static bool new_sweep = false;
 long map(long x, long in_min, long in_max, long out_min, long out_max)
 {
   return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
-}
+}   
 
 bool sampler_callback(repeating_timer_t *timer)
 {
@@ -107,6 +107,19 @@ size_t max_idx(std::vector<float>& in)
         }
     }
     return idx;
+}
+
+
+size_t window(std::vector<float>& in, size_t start)
+{
+    for(size_t i = start; i < in.size(); ++i)
+    {
+        if(abs(in[i] - in[start]) > (in[start]*0.1))
+        {
+            return i;
+        }
+    }
+    return in.size()-1;
 }
 
 
