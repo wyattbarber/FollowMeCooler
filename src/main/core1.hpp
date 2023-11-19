@@ -1,6 +1,6 @@
 #pragma once
 #include "scanner.hpp"
-#include "gps.hpp"
+// #include "gps.hpp"
 #include "ble.hpp"
 #include "pinout.hpp"
 #include <stdio.h>
