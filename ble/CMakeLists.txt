@@ -4,7 +4,7 @@ add_executable(ble_test ble.cpp)
 target_link_libraries(ble_test 
     pico_stdlib 
     hardware_uart
-)
+    )
 
 # enable usb output, disable uart output
 pico_enable_stdio_usb(ble_test 1)
