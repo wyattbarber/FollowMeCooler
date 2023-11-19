@@ -1,7 +1,5 @@
-
-
-include_directories(../MicroNMEA/src)
-add_executable(gps_test gps.cpp ../MicroNMEA/src/MicroNMEA.cpp)
+include_directories(../../MicroNMEA/src)
+add_executable(gps_test gps.cpp ../../MicroNMEA/src/MicroNMEA.cpp)
 
 # pull in common dependencies
 target_link_libraries(gps_test 
