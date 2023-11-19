@@ -38,6 +38,7 @@ OpMode mode = HOLD;
 
 void decode_msg(char cmd, std::string data)
 {
+    printf("Incoming command is '%c'\n", cmd);
     switch (cmd)
     {
     case UI_CODE_POS:
@@ -49,20 +50,21 @@ void decode_msg(char cmd, std::string data)
     }
 
     case UI_CODE_MODE:
-        if (data.compare(UI_MODE_HOLD))
+    {
+        if (data.compare(UI_MODE_HOLD) == 0)
             mode = HOLD;
-        else if (data.compare(UI_MODE_FOLLOW))
+        else if (data.compare(UI_MODE_FOLLOW) == 0)
             mode = FOLLOW;
-        else if (data.compare(UI_MODE_TEST_DRIVE))
+        else if (data.compare(UI_MODE_TEST_DRIVE) == 0)
             mode = DRIVE_TEST;
-        else if (data.compare(UI_MODE_TEST_OA))
+        else if (data.compare(UI_MODE_TEST_OA) == 0)
             mode = OA_TEST;
         else
-            printf("Unrecognized mode %s", data.c_str());
+            printf("Unrecognized mode %s\n", data.c_str());
         break;
-
+    }
     default:
-        printf("Unrecognized command %c", cmd);
+        printf("Unrecognized command %c\n", cmd);
         break;
     }
 }
@@ -74,8 +76,21 @@ void ble_rx_handle()
         char c = uart_getc(BLE_UART);
         if (c == '\n')
         {
-            // Decode input message
-            decode_msg(ui_msg[0], ui_msg.substr(1));
+            // Find start of message to handle alignment errors
+            auto idx = ui_msg.find(UI_CODE_POS);
+            if(idx == std::string::npos)
+            {
+                idx = ui_msg.find(UI_CODE_MODE);
+            }
+            if(idx != std::string::npos)
+            {
+                // Decode input message
+                decode_msg(ui_msg[idx], ui_msg.substr(idx+1));
+            }
+            else
+            {
+                printf("Invalid command sentence: %s\n", ui_msg.c_str());
+            }
             ui_msg = {""};
         }
         else
@@ -85,6 +100,7 @@ void ble_rx_handle()
         printf("%c", c);
     }
 }
+
 
 int main()
 {
@@ -107,6 +123,6 @@ int main()
     while (true)
     {
         sleep_ms(5000);
-        printf("%d lat x %d long, mode #%d\n", latitude, longitude, mode);
+        printf("%d lat x %d long, mode #%d\n", latitude, longitude, (int)mode);
     }
 }
