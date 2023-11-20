@@ -105,9 +105,8 @@ public:
     int path_angle()
     {
         // moving_average(0.7);
-        size_t idx = max_idx();
-        // auto dir = window(smoothed, idx);
-        return map(idx, 0, N, min_angle, max_angle);
+        size_t pos = window(max_idx(), 20);
+        return idx_to_angle(pos);
     }
 
     std::vector<float> data()
@@ -153,16 +152,20 @@ public:
         return idx;
     }
 
-    size_t window(std::vector<float> &in, size_t start)
+    size_t window(size_t center, size_t size)
     {
-        for (size_t i = start; i < in.size(); ++i)
+        size_t max = MIN(N, center+size);
+        size_t min = MAX(0, center-size);
+
+        size_t sum = 0;
+        size_t weight = 0;
+        for (size_t i = min; i < max; ++i)
         {
-            if (abs(in[i] - in[start]) > (in[start] * 0.1))
-            {
-                return i;
-            }
+            sum += dist_hold[i] * i;
+            weight += dist_hold[i]; 
         }
-        return in.size() - 1;
+
+        return sum / weight;
     }
 
     long map(long x, long in_min, long in_max, long out_min, long out_max)
