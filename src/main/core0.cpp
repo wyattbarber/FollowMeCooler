@@ -4,6 +4,7 @@
 #include "pico/stdlib.h"
 #include "pico/multicore.h"
 #include "hardware/irq.h"
+#include "navigation.hpp"
 
 void core0_msg_handler()
 {
