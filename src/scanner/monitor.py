@@ -32,7 +32,7 @@ def main():
     ax.set_xlim(-1000, 1000)
     ax.set_ylim(0, 1000)
     plt.draw()
-    with serial.Serial("COM4", 115200, timeout=None) as ser:
+    with serial.Serial("COM8", 115200, timeout=None) as ser:
         while ser.is_open:
             msg = ser.read_until(b"\n")
             angles, dist, path_angle = decode(msg.decode().strip('\r'))
