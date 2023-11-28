@@ -1,6 +1,6 @@
-include_directories(../scanner/ ../gps/ ../ble/)
+include_directories(../scanner/ ../gps/ ../ble/ ../../MicroNMEA/src)
 
-add_executable(cooler core0.cpp)
+add_executable(cooler core0.cpp ../../MicroNMEA/src/MicroNMEA.cpp)
 
 # pull in common dependencies
 target_link_libraries(cooler 

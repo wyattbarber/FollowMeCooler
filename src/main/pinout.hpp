@@ -13,3 +13,11 @@
 #define BLE_PARITY UART_PARITY_NONE
 #define BLE_PIN_CTS 2
 #define BLE_PIN_RTS 3
+
+#define GPS_UART uart0
+#define GPS_IRQ UART0_IRQ
+#define GPS_TX 0
+#define GPS_RX 1
+#define GPS_DATABITS 8
+#define GPS_STOPBITS 1
+#define GPS_PARITY UART_PARITY_NONE

@@ -4,6 +4,7 @@
 #define _USE_MATH_DEFINES
 #include <cmath>
 #include <string>
+#include <tuple>
 
 std::string ui_msg = {""};
 #define UI_CODE_POS 'C'

@@ -119,6 +119,19 @@ public:
         return map(idx, 0, N, min_angle, max_angle);
     }
 
+    float min()
+    {
+        float m = dist_hold[0];
+        for (size_t i = 0; i < N; ++i)
+        {
+            if (dist_hold[i] < m)
+            {
+                m = dist_hold[i];
+            }
+        }
+        return m;
+    }
+
     protected:
     void moving_average(float alpha)
     {
