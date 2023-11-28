@@ -64,7 +64,7 @@ void echo_callback(uint gpio, uint32_t events)
 
 typedef struct {
     int angle_of_path;
-    long min_dist;
+    float min_dist;
 } ScanMsg;
 
 

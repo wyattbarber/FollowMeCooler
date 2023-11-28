@@ -8,10 +8,40 @@
 
 void core0_msg_handler()
 {
-    ScanMsg* obj;
+    Core1Msg* obj;
     while (multicore_fifo_rvalid())
-        obj = (ScanMsg*)multicore_fifo_pop_blocking();
-    printf("New Path Direction: %d\n", obj->angle_of_path);
+        obj = (Core1Msg*)multicore_fifo_pop_blocking();
+    
+    if(obj->is_scan_update)
+    {
+        printf(
+            "Scanner Update: path %d degrees, object %f mm\n", 
+            obj->scan_update.angle_of_path,
+            obj->scan_update.min_dist
+        );
+    }
+    else if(obj->is_robot_gps_update)
+    {
+        printf(
+            "Robot Position Update: %d lat x %d long, fix %d\n",
+            std::get<0>(obj->robot_gps_update),
+            std::get<1>(obj->robot_gps_update),
+            std::get<2>(obj->robot_gps_update)
+        );
+    }
+    else if(obj->is_user_update)
+    {
+        printf(
+            "User Update: %d lat x %d long, mode %d\n",
+            std::get<0>(obj->user_update),
+            std::get<1>(obj->user_update),
+            std::get<2>(obj->user_update)
+        );
+    }
+    else
+    {
+        printf("Invalid update recieved from core 1.\n");
+    }
 }
 
 int main()
