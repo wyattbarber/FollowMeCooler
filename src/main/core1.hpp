@@ -68,12 +68,20 @@ typedef struct {
     float min_dist;
 } ScanMsg;
 
+typedef struct {
+    long lat;
+    long lon;
+    long course;
+    long speed;
+    bool fix;
+} GPSMsg;
+
 
 typedef struct {
     ScanMsg scan_update;
     bool is_scan_update;
 
-    std::tuple<long, long, bool> robot_gps_update;
+    GPSMsg robot_gps_update;
     bool is_robot_gps_update;
 
     std::tuple<long, long, OpMode> user_update;
@@ -138,7 +146,11 @@ void main_core1()
             msg.is_user_update = false;
             msg.is_robot_gps_update = true;
 
-            msg.robot_gps_update = {decoder.getLatitude(), decoder.getLongitude(), decoder.getNumSatellites() >= 3};
+            msg.robot_gps_update.lat = decoder.getLatitude(), 
+            msg.robot_gps_update.lon = decoder.getLongitude(), 
+            msg.robot_gps_update.fix = decoder.getNumSatellites() >= 3,
+            msg.robot_gps_update.course = decoder.getCourse(),
+            msg.robot_gps_update.speed = decoder.getSpeed();
 
             queue_add_blocking(&queue_to_core0, &msg);
         }        

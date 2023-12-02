@@ -12,6 +12,7 @@
 
 bool fix = false;
 long robot_lat, robot_long;
+long robot_heading, robot_speed;
 long user_lat, user_long;
 OpMode mode;
 int oa_angle;
@@ -32,14 +33,17 @@ void pop_queue(Core1Msg* obj)
     }
     else if(obj->is_robot_gps_update)
     {
-        fix = std::get<2>(obj->robot_gps_update);
-        robot_lat = std::get<0>(obj->robot_gps_update);
-        robot_long = std::get<1>(obj->robot_gps_update);
+        fix = obj->robot_gps_update.fix;
+        robot_lat = obj->robot_gps_update.lat;
+        robot_long = obj->robot_gps_update.lon;
+        robot_heading = obj->robot_gps_update.course;
+        robot_speed = obj->robot_gps_update.speed;
 
         printf(
-            "Robot Position Update: %f m from user, %f degrees heading\n",
+            "Robot Position Update: fix %d, %f m from user, %d degrees heading, %d speed\n",
+            fix,
             nav::dist(robot_lat, user_lat, robot_long, user_long),
-            nav::angle(robot_lat, user_lat, robot_long, user_long)
+            robot_heading, robot_speed
         );
     }
     else if(obj->is_user_update)
@@ -66,8 +70,6 @@ uint8_t x_reg_buf[] = {COMP_X_REG};
 uint8_t x_reg[] = {0, 0};
 uint8_t y_reg_buf[] = {COMP_Y_REG};
 uint8_t y_reg[] = {0, 0};
-uint8_t z_reg_buf[] = {COMP_Z_REG};
-uint8_t z_reg[] = {0, 0};
 bool motor_callback(repeating_timer_t *rt)
 {
     // Read I2C magnetometer data
@@ -75,8 +77,6 @@ bool motor_callback(repeating_timer_t *rt)
     i2c_read_blocking(COMP_I2C, COMP_ADDR, x_reg, 2, false);
     i2c_write_blocking(COMP_I2C, COMP_ADDR, y_reg_buf, 1, true);
     i2c_read_blocking(COMP_I2C, COMP_ADDR, y_reg, 2, false);
-    i2c_write_blocking(COMP_I2C, COMP_ADDR, z_reg_buf, 1, true);
-    i2c_read_blocking(COMP_I2C, COMP_ADDR, z_reg, 2, false);
 
     int16_t x = (static_cast<int16_t>(x_reg[1]) << 8) | x_reg[0];
     int16_t y = (static_cast<int16_t>(y_reg[1]) << 8) | y_reg[0];
@@ -86,7 +86,6 @@ bool motor_callback(repeating_timer_t *rt)
     printf("Orientation Update: %f degrees heading\n", heading);
     return true;
 }
-
 
 
 int main()
@@ -102,8 +101,16 @@ int main()
     gpio_pull_up(COMP_SDA); 
 
     // Setup magnetometer
-    uint8_t buf[] = {COMP_MODE_REG, COMP_MODE};
-    i2c_write_blocking(COMP_I2C, COMP_ADDR, buf, 2, false);
+    uint8_t bufrbt[] = {COMP_CFG_REG_A, COMP_RESET};
+    i2c_write_blocking(COMP_I2C, COMP_ADDR, bufrbt, 2, false);
+    sleep_ms(100);
+    uint8_t bufrst[] = {COMP_CFG_REG_A, COMP_RESET};
+    i2c_write_blocking(COMP_I2C, COMP_ADDR, bufrst, 2, false);
+    sleep_ms(100);
+    uint8_t bufa[] = {COMP_CFG_REG_A, COMP_CFG_A};
+    i2c_write_blocking(COMP_I2C, COMP_ADDR, bufa, 2, false);
+    uint8_t bufc[] = {COMP_CFG_REG_C, COMP_CFG_C};
+    i2c_write_blocking(COMP_I2C, COMP_ADDR, bufc, 2, false);
 
     // Setup motor update loop
     repeating_timer_t timer;
