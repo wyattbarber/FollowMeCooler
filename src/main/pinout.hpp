@@ -4,6 +4,11 @@
 #define US_PIN_ECHO 11
 #define US_PIN_SERVO 20
 
+#define LEFT_PIN_A 18
+#define LEFT_PIN_B 16
+#define RIGHT_PIN_A 19
+#define RIGHT_PIN_B 17
+
 #define BLE_UART uart1
 #define BLE_IRQ UART1_IRQ
 #define BLE_TX 4

@@ -112,6 +112,35 @@ int main()
     uint8_t bufc[] = {COMP_CFG_REG_C, COMP_CFG_C};
     i2c_write_blocking(COMP_I2C, COMP_ADDR, bufc, 2, false);
 
+    // Configure motor driver IO
+    gpio_init(LEFT_PIN_A);
+    gpio_init(LEFT_PIN_B);
+    gpio_init(RIGHT_PIN_A);
+    gpio_init(RIGHT_PIN_B);
+
+    gpio_set_dir(LEFT_PIN_A, GPIO_OUT);
+    gpio_set_dir(LEFT_PIN_B, GPIO_OUT);
+    gpio_set_dir(RIGHT_PIN_A, GPIO_OUT);
+    gpio_set_dir(RIGHT_PIN_B, GPIO_OUT);
+
+    gpio_set_function(LEFT_PIN_A, GPIO_FUNC_PWM);
+    gpio_set_function(RIGHT_PIN_A, GPIO_FUNC_PWM);
+    uint slice = pwm_gpio_to_slice_num(LEFT_PIN_A); // Left and right share the same slice
+    uint channel_la = pwm_gpio_to_channel(LEFT_PIN_A);
+    uint channel_ra = pwm_gpio_to_channel(RIGHT_PIN_A);
+
+    // Configure PWM frequency
+    pwm_config config = pwm_get_default_config();
+    uint32_t clk = clock_get_hz(clk_sys); // clk_sys
+    // aim at 50 Hz with counter running to 20 000
+    uint32_t div = clk / (20000 * 50);
+    // Set divider to get 50 Hz
+    pwm_config_set_clkdiv(&config, (float)div);
+    // Set wrap to count to 20000, so the period is 20 ms
+    pwm_config_set_wrap(&config, 20000);
+    // Load the configuration into our PWM slice, and set it running.
+    pwm_init(slice, &config, true);
+
     // Setup motor update loop
     repeating_timer_t timer;
     add_repeating_timer_ms(MOTOR_PERIOD_MS, motor_callback, NULL, &timer);
@@ -120,13 +149,42 @@ int main()
     queue_init(&queue_to_core0, sizeof(Core1Msg), 10);
     multicore_launch_core1(main_core1);
 
-
-
     Core1Msg msg;
 
     while(true)
     {
-        queue_remove_blocking(&queue_to_core0, &msg);
-        pop_queue(&msg);
+        if(queue_try_remove(&queue_to_core0, &msg))
+        {
+            pop_queue(&msg);
+    
+        }
+
+        switch(mode)
+        {
+            case HOLD:
+            {
+                pwm_set_chan_level(slice, channel_la, 0);
+                pwm_set_chan_level(slice, channel_ra, 0);
+                gpio_clr_mask((1 << LEFT_PIN_B) | (1 << RIGHT_PIN_B));
+            }
+            case FOLLOW:
+            {
+
+            }
+            case DRIVE_TEST:
+            {
+                pwm_set_chan_level(slice, channel_la, 2000);
+                pwm_set_chan_level(slice, channel_ra, 2000);
+                gpio_clr_mask((1 << LEFT_PIN_B) | (1 << RIGHT_PIN_B));
+            }
+            case OA_TEST:
+            {
+
+            }
+            default:
+            {
+                mode = HOLD;
+            }
+        }
     }
 }
