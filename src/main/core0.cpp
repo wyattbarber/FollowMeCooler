@@ -7,32 +7,50 @@
 #include "hardware/i2c.h"
 #include "navigation.hpp"
 
+
+bool fix = false;
+long robot_lat, robot_long;
+long user_lat, user_long;
+OpMode mode;
+int oa_angle;
+float oa_dist;
+
+
 void pop_queue(Core1Msg* obj)
     {
     if(obj->is_scan_update)
     {
+        oa_angle = obj->scan_update.angle_of_path;
+        oa_dist = obj->scan_update.min_dist;
         printf(
             "Scanner Update: path %d degrees, object %f mm\n", 
-            obj->scan_update.angle_of_path,
-            obj->scan_update.min_dist
+            oa_angle,
+            oa_dist
         );
     }
     else if(obj->is_robot_gps_update)
     {
+        fix = std::get<2>(obj->robot_gps_update);
+        robot_lat = std::get<0>(obj->robot_gps_update);
+        robot_long = std::get<1>(obj->robot_gps_update);
+
         printf(
-            "Robot Position Update: %d lat x %d long, fix %d\n",
-            std::get<0>(obj->robot_gps_update),
-            std::get<1>(obj->robot_gps_update),
-            std::get<2>(obj->robot_gps_update)
+            "Robot Position Update: %f m from user, %f degrees heading\n",
+            nav::dist(robot_lat, user_lat, robot_long, user_long),
+            nav::angle(robot_lat, user_lat, robot_long, user_long)
         );
     }
     else if(obj->is_user_update)
     {
+        user_lat = std::get<0>(obj->user_update);
+        user_long = std::get<1>(obj->user_update);
+        mode = std::get<2>(obj->user_update);
+
         printf(
             "User Update: %d lat x %d long, mode %d\n",
-            std::get<0>(obj->user_update),
-            std::get<1>(obj->user_update),
-            std::get<2>(obj->user_update)
+            user_lat,
+            user_long,
+            mode
         );
     }
     else

@@ -1,7 +1,7 @@
 #define _USE_MATH_DEFINES
 #include <cmath>
 
-#define R_EARTH_M 6.371E6 //! Radius of the earth, in meters
+#define R_EARTH_M 6378100.0 //! Radius of the earth, in meters
 
 namespace nav
 {
@@ -15,7 +15,7 @@ namespace nav
 double hav(double theta)
 {
     double tr = theta * M_PI / 180.0;
-    double s = sin(tr);
+    double s = sin(tr / 2.0);
     return pow(s, 2.0);
 }
 
@@ -34,16 +34,18 @@ double hav(double theta)
 */
 float dist(long lat1, long lat2, long long1, long long2)
 {
-    double a = hav(static_cast<double>(lat2 - lat1));
-    double b = 1.0 - hav(static_cast<double>(lat1 - lat2)) - hav(static_cast<double>(lat1 + lat2));
-    double c = hav(static_cast<double>(long2 - long1));
-    return static_cast<float>(2.0 * R_EARTH_M * asin(a + (b * c)));
+    double a = hav(static_cast<double>(lat2 - lat1) / 1E6);
+    double b = cos(lat1 * M_PI / 180E6) * cos(lat2 * M_PI / 180E6);
+    double c = hav(static_cast<double>(long2 - long1) / 1E6);
+    return static_cast<float>(R_EARTH_M * 2.0 * atan2(sqrt(a + (b*c)), sqrt(1.0 - (a + (b*c)))));
 }
 
 
 /** Orientation of two GPS coordinates
  * 
  * Calculates the angle of one coordinate pair relative to another.
+ * All coordinates given in millionths of degrees. 
+ * 
  * The angle calculated as the angle from south from point 2 towards point 1.
  * Westward angles from point 2 are positive.
  * 
@@ -59,10 +61,10 @@ float dist(long lat1, long lat2, long long1, long long2)
 */
 float angle(long lat1, long lat2, long long1, long long2)
 {
-    double y = cos(static_cast<double>(lat2)) * sin(static_cast<double>(long1 - long2));
-    double x1 = cos(static_cast<double>(lat2)) * sin(static_cast<double>(lat1)); 
-    double x2 = sin(static_cast<double>(lat2)) * cos(static_cast<double>(lat1)) * cos(static_cast<double>(long1 - long2));
-    double brng = atan2(y, x1-x2);
+    double x = cos(static_cast<double>(lat2) * M_PI / 180E6) * sin(static_cast<double>(long2 - long1) * M_PI / 180E6);
+    double y1 = cos(static_cast<double>(lat1) * M_PI / 180E6) * sin(static_cast<double>(lat2) * M_PI / 180E6); 
+    double y2 = sin(static_cast<double>(lat1) * M_PI / 180E6) * cos(static_cast<double>(lat2) * M_PI / 180E6) * cos(static_cast<double>(long2 - long1) * M_PI / 180E6);
+    double brng = atan2(x, y1-y2);
     return static_cast<double>(brng * 180.0 / M_PI);
 }
 
