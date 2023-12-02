@@ -4,14 +4,11 @@
 #include "pico/stdlib.h"
 #include "pico/multicore.h"
 #include "hardware/irq.h"
+#include "hardware/i2c.h"
 #include "navigation.hpp"
 
-void core0_msg_handler()
-{
-    Core1Msg* obj;
-    while (multicore_fifo_rvalid())
-        obj = (Core1Msg*)multicore_fifo_pop_blocking();
-    
+void pop_queue(Core1Msg* obj)
+    {
     if(obj->is_scan_update)
     {
         printf(
@@ -47,17 +44,25 @@ void core0_msg_handler()
 int main()
 {
     stdio_init_all();
+    gpio_set_dir(25, GPIO_OUT);
+
+    // Configure I2C IO
+    i2c_init(COMP_I2C, 100000);
+    gpio_set_function(COMP_SCL, GPIO_FUNC_I2C);
+    gpio_set_function(COMP_SDA, GPIO_FUNC_I2C);
+    gpio_pull_up(COMP_SCL);
+    gpio_pull_up(COMP_SDA); 
 
     // Setup core 1 program
+    queue_init(&queue_to_core0, sizeof(Core1Msg), 10);
     multicore_launch_core1(main_core1);
 
-    // Initialize multi core communication
-    multicore_fifo_clear_irq();
-    irq_set_exclusive_handler(SIO_IRQ_PROC0, core0_msg_handler);
-    irq_set_enabled(SIO_IRQ_PROC0, true);
+
+    Core1Msg msg;
 
     while(true)
     {
-        tight_loop_contents();
+        queue_remove_blocking(&queue_to_core0, &msg);
+        pop_queue(&msg);
     }
 }

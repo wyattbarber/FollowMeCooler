@@ -7,6 +7,7 @@ target_link_libraries(cooler
     pico_stdlib 
     hardware_pwm
     hardware_uart
+    hardware_i2c
     pico_multicore
 )
 

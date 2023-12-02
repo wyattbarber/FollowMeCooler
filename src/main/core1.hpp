@@ -7,6 +7,7 @@
 #include "pico/stdlib.h"
 #include "pico/multicore.h"
 #include "hardware/irq.h"
+#include "pico/util/queue.h"
 #include <string.h>
 #include "MicroNMEA.h"
 
@@ -78,7 +79,9 @@ typedef struct {
     std::tuple<long, long, OpMode> user_update;
     bool is_user_update;
 } Core1Msg;
-Core1Msg msg;
+
+queue_t queue_to_core0;
+
 
 void main_core1()
 {
@@ -101,12 +104,10 @@ void main_core1()
     irq_set_exclusive_handler(BLE_IRQ, ble_rx_handle);
     irq_set_enabled(BLE_IRQ, true);
     uart_set_irq_enables(BLE_UART, true, false);
-    gpio_clr_mask(1 << BLE_PIN_CTS);
 
     uart_init(GPS_UART, 9600);
     gpio_set_function(GPS_TX, GPIO_FUNC_UART);
     gpio_set_function(GPS_RX, GPIO_FUNC_UART);
-
     irq_set_exclusive_handler(GPS_IRQ, gps_rx_handle);
     irq_set_enabled(GPS_IRQ, true);
     uart_set_irq_enables(GPS_UART, true, false);
@@ -116,6 +117,8 @@ void main_core1()
     {
         if(scan_data->new_data())
         {
+            Core1Msg msg;
+
             msg.is_scan_update = true;
             msg.is_user_update = false;
             msg.is_robot_gps_update = false;
@@ -123,28 +126,33 @@ void main_core1()
             msg.scan_update.angle_of_path = scan_data->path_angle();
             msg.scan_update.min_dist = scan_data->min();
 
-            multicore_fifo_push_blocking((uint32_t)&msg);
+            queue_add_blocking(&queue_to_core0, &msg);
         }
         else if(new_gps)
         {
             new_gps = false;
+
+            Core1Msg msg;
+
             msg.is_scan_update = false;
             msg.is_user_update = false;
             msg.is_robot_gps_update = true;
 
             msg.robot_gps_update = {decoder.getLatitude(), decoder.getLongitude(), decoder.getNumSatellites() >= 3};
 
-            multicore_fifo_push_blocking((uint32_t)&msg);
+            queue_add_blocking(&queue_to_core0, &msg);
         }        
         else if(parser.newData())
         {
+            Core1Msg msg;
+
             msg.is_scan_update = false;
             msg.is_user_update = true;
             msg.is_robot_gps_update = false;
 
             msg.user_update = {parser.userLatitude(), parser.userLongitude(), parser.currentMode()};
 
-            multicore_fifo_push_blocking((uint32_t)&msg);
+            queue_add_blocking(&queue_to_core0, &msg);
         }
         else
         {

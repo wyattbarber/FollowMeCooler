@@ -14,7 +14,7 @@ class ScannerData
 {
 public:
     ScannerData(int trig_pin, int echo_pin, int servo_pin, int sample_period = 25,
-                uint8_t N = 100, int8_t min_angle = -80, int16_t min_us = 900, int8_t max_angle = 80, int16_t max_us = 2100)
+                uint8_t N = 100, int8_t min_angle = -45, int16_t min_us = 900, int8_t max_angle = 45, int16_t max_us = 2100)
                  : trig_pin(trig_pin), echo_pin(echo_pin), servo_pin(servo_pin),
                  N(N), min_angle(min_angle), min_us(min_us), max_angle(max_angle), max_us(max_us)
     {
