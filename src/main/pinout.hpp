@@ -23,3 +23,9 @@
 #define COMP_SDA 2
 #define COMP_SCL 3
 #define COMP_I2C i2c1
+#define COMP_ADDR _u(0x1E)
+#define COMP_MODE_REG _u(0x60)
+#define COMP_MODE _u(0x8C)
+#define COMP_X_REG _u(0x68)
+#define COMP_Y_REG _u(0x6A)
+#define COMP_Z_REG _u(0x6C)
