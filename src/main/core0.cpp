@@ -180,9 +180,9 @@ int main()
 
     gpio_set_function(LEFT_PIN_A, GPIO_FUNC_PWM);
     gpio_set_function(RIGHT_PIN_A, GPIO_FUNC_PWM);
-    uint slice = pwm_gpio_to_slice_num(LEFT_PIN_A); // Left and right share the same slice
-    uint channel_la = pwm_gpio_to_channel(LEFT_PIN_A);
-    uint channel_ra = pwm_gpio_to_channel(RIGHT_PIN_A);
+    slice = pwm_gpio_to_slice_num(LEFT_PIN_A); // Left and right share the same slice
+    channel_la = pwm_gpio_to_channel(LEFT_PIN_A);
+    channel_ra = pwm_gpio_to_channel(RIGHT_PIN_A);
 
     // Configure PWM frequency
     pwm_config config = pwm_get_default_config();
