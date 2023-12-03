@@ -7,16 +7,28 @@
 #include "hardware/i2c.h"
 #include "navigation.hpp"
 
-#define MOTOR_PERIOD_MS 1000
+#define MOTOR_PERIOD_MS 100 //! Motor control update period
+#define LEFT_MOTOR_RVS false //! Reverse throttle commands to left motor
+#define RIGHT_MOTOR_RVS false //! Reverse throttle commands to right motor
 
+#define DRIVE_TEST_THROTTLE 1000 //! Throttle command for testing drive
 
-bool fix = false;
-long robot_lat, robot_long;
-long robot_heading, robot_speed;
-long user_lat, user_long;
-OpMode mode;
-int oa_angle;
-float oa_dist;
+#define OA_DIST 100 //! Min clearance (mm) from obstacles, below which obstacle avoiance mode is triggered
+#define OA_THROTTLE 500 //! Drive throttle for obstacle avoidanve mode
+#define K_OA 0.01 //! Proportional control constance for obstacle avoidance
+
+bool fix = false; //! Robot GPS has a planar position fix
+long robot_lat, robot_long; //! Current robot GPS coordinates, in millionths of degrees
+float robot_heading, robot_speed; //! Velocity data extrapolted form GPS coordinates
+long user_lat, user_long; //! Latest position of user, in millionths of degrees
+OpMode mode; //! Current mode of operation selected by user
+int oa_angle; //! Angle of most open path determined by scanner (positive is right)
+float oa_dist; //! Distance of closest object detected by scanner in mm
+
+uint channel_la, channel_ra; //! PWM channels for motor control
+uint slice; //! Motor control PWM slice
+int drive_cmd; //! Forward/reverse component of throttle command
+int steer_cmd; //! Left/right component of throttle command (left positive)
 
 
 void pop_queue(Core1Msg* obj)
@@ -72,19 +84,62 @@ uint8_t y_reg_buf[] = {COMP_Y_REG};
 uint8_t y_reg[] = {0, 0};
 bool motor_callback(repeating_timer_t *rt)
 {
-    // Read I2C magnetometer data
-    i2c_write_blocking(COMP_I2C, COMP_ADDR, x_reg_buf, 1, true);
-    i2c_read_blocking(COMP_I2C, COMP_ADDR, x_reg, 2, false);
-    i2c_write_blocking(COMP_I2C, COMP_ADDR, y_reg_buf, 1, true);
-    i2c_read_blocking(COMP_I2C, COMP_ADDR, y_reg, 2, false);
+    // // Read I2C magnetometer data
+    // i2c_write_blocking(COMP_I2C, COMP_ADDR, x_reg_buf, 1, true);
+    // i2c_read_blocking(COMP_I2C, COMP_ADDR, x_reg, 2, false);
+    // i2c_write_blocking(COMP_I2C, COMP_ADDR, y_reg_buf, 1, true);
+    // i2c_read_blocking(COMP_I2C, COMP_ADDR, y_reg, 2, false);
 
-    int16_t x = (static_cast<int16_t>(x_reg[1]) << 8) | x_reg[0];
-    int16_t y = (static_cast<int16_t>(y_reg[1]) << 8) | y_reg[0];
-    double heading = atan2(static_cast<double>(y), static_cast<double>(x)) * 180.0 / M_PI;
-    while(heading > 360.0) heading -= 360.0;
-    while(heading < 0.0) heading += 360.0;
-    printf("Orientation Update: %f degrees heading\n", heading);
-    return true;
+    // int16_t x = (static_cast<int16_t>(x_reg[1]) << 8) | x_reg[0];
+    // int16_t y = (static_cast<int16_t>(y_reg[1]) << 8) | y_reg[0];
+    // double heading = atan2(static_cast<double>(y), static_cast<double>(x)) * 180.0 / M_PI;
+    // while(heading > 360.0) heading -= 360.0;
+    // while(heading < 0.0) heading += 360.0;
+    // printf("Orientation Update: %f degrees heading\n", heading);
+
+    // Calculate left/right commands from drive and steer
+    int left_cmd = drive_cmd - steer_cmd;
+    int right_cmd = drive_cmd + steer_cmd;
+
+    // Set left motor throttle
+    if(left_cmd >= 0)
+    {   
+#if LEFT_MOTOR_RVS
+        gpio_clr_mask(1 << LEFT_PIN_B);
+#else
+        gpio_set_mask(1 << LEFT_PIN_B);
+#endif
+    }
+    else
+    {
+#if LEFT_MOTOR_RVS
+        gpio_set_mask(1 << LEFT_PIN_B);
+#else
+        gpio_clr_mask(1 << LEFT_PIN_B);
+#endif
+    }
+    pwm_set_chan_level(slice, channel_la, MIN(abs(left_cmd), 2000));
+
+    // Set right motor throttle
+    if(right_cmd >= 0)
+    {   
+#if RIGHT_MOTOR_RVS
+        gpio_clr_mask(1 << RIGHT_PIN_B);
+#else
+        gpio_set_mask(1 << RIGHT_PIN_B);
+#endif
+    }
+    else
+    {
+#if RIGHT_MOTOR_RVS
+        gpio_set_mask(1 << RIGHT_PIN_B);
+#else
+        gpio_clr_mask(1 << RIGHT_PIN_B);
+#endif
+    }
+    pwm_set_chan_level(slice, channel_ra, MIN(abs(right_cmd), 2000));
+
+    return true; // return true to keep timer running
 }
 
 
@@ -163,9 +218,8 @@ int main()
         {
             case HOLD:
             {
-                pwm_set_chan_level(slice, channel_la, 0);
-                pwm_set_chan_level(slice, channel_ra, 0);
-                gpio_clr_mask((1 << LEFT_PIN_B) | (1 << RIGHT_PIN_B));
+                drive_cmd = 0;
+                steer_cmd = 0;
             }
             case FOLLOW:
             {
@@ -173,16 +227,29 @@ int main()
             }
             case DRIVE_TEST:
             {
-                pwm_set_chan_level(slice, channel_la, 2000);
-                pwm_set_chan_level(slice, channel_ra, 2000);
-                gpio_clr_mask((1 << LEFT_PIN_B) | (1 << RIGHT_PIN_B));
+                drive_cmd = DRIVE_TEST_THROTTLE;
+                steer_cmd = 0;
             }
             case OA_TEST:
             {
-
+                if(oa_dist > OA_DIST)
+                {
+                    // Normal drive test
+                    drive_cmd = DRIVE_TEST_THROTTLE;
+                    steer_cmd = 0;
+                }
+                else
+                {
+                    // Obstacle detected, steer away
+                    drive_cmd = OA_THROTTLE;
+                    steer_cmd = -oa_angle; // Sign of scanner angles is reversed from drive angles
+                    steer_cmd *= K_OA; // Apply control gain
+                }
             }
             default:
             {
+                drive_cmd = 0;
+                steer_cmd = 0;
                 mode = HOLD;
             }
         }

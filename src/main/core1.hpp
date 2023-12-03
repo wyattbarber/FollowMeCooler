@@ -11,7 +11,8 @@
 #include <string.h>
 #include "MicroNMEA.h"
 
-#define US_PERIOD_MS 25
+#define US_PERIOD_MS 10 //! Period in ms between each ultrasonic measurement
+#define US_SAMPLES 50 //! Number of ultrasonic measurments per scan
 
 UIParser parser;
 
@@ -101,7 +102,7 @@ void main_core1()
     // irq_set_enabled(SIO_IRQ_PROC1, true);
 
     // Initialize scanner data aquisition
-    scan_data = new ScannerData(US_PIN_TRIG, US_PIN_ECHO, US_PIN_SERVO);
+    scan_data = new ScannerData(US_PIN_TRIG, US_PIN_ECHO, US_PIN_SERVO, US_PERIOD_MS, US_SAMPLES);
     repeating_timer_t timer;
     add_repeating_timer_ms(US_PERIOD_MS, sampler_callback, NULL, &timer);
     gpio_set_irq_enabled_with_callback(US_PIN_ECHO, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true, &echo_callback);
