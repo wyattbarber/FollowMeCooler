@@ -72,8 +72,8 @@ typedef struct {
 typedef struct {
     long lat;
     long lon;
-    long course;
-    long speed;
+    float course;
+    float speed;
     bool fix;
 } GPSMsg;
 
@@ -149,9 +149,7 @@ void main_core1()
 
             msg.robot_gps_update.lat = decoder.getLatitude(), 
             msg.robot_gps_update.lon = decoder.getLongitude(), 
-            msg.robot_gps_update.fix = decoder.getNumSatellites() >= 3,
-            msg.robot_gps_update.course = decoder.getCourse(),
-            msg.robot_gps_update.speed = decoder.getSpeed();
+            msg.robot_gps_update.fix = decoder.getNumSatellites() >= 3;
 
             queue_add_blocking(&queue_to_core0, &msg);
         }        
