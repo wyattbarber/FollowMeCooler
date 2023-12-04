@@ -9,24 +9,24 @@
 
 #define MOTOR_PERIOD_MS 100 //! Motor control update period
 #define LEFT_MOTOR_RVS false //! Reverse throttle commands to left motor
-#define RIGHT_MOTOR_RVS false //! Reverse throttle commands to right motor
+#define RIGHT_MOTOR_RVS true //! Reverse throttle commands to right motor
 
-#define DRIVE_TEST_THROTTLE 1000 //! Throttle command for testing drive
+#define DRIVE_TEST_THROTTLE 10000 //! Throttle command for testing drive
 
-#define OA_DIST 100 //! Min clearance (mm) from obstacles, below which obstacle avoiance mode is triggered
-#define OA_THROTTLE 500 //! Drive throttle for obstacle avoidanve mode
-#define K_OA 0.01 //! Proportional control constance for obstacle avoidance
+#define OA_DIST 700.0 //! Min clearance (mm) from obstacles, below which obstacle avoiance mode is triggered
+#define OA_THROTTLE 5000 //! Drive throttle for obstacle avoidanve mode
+#define K_OA 50 //! Proportional control constance for obstacle avoidance
 
 bool fix = false; //! Robot GPS has a planar position fix
 long robot_lat, robot_long; //! Current robot GPS coordinates, in millionths of degrees
 float robot_heading, robot_speed; //! Velocity data extrapolted form GPS coordinates
 long user_lat, user_long; //! Latest position of user, in millionths of degrees
-OpMode mode; //! Current mode of operation selected by user
+ModeMsg mode; //! Current mode of operation selected by user
 int oa_angle; //! Angle of most open path determined by scanner (positive is right)
 float oa_dist; //! Distance of closest object detected by scanner in mm
 
-uint channel_la, channel_ra; //! PWM channels for motor control
-uint slice; //! Motor control PWM slice
+uint channel_la, channel_ra, channel_lb, channel_rb; //! PWM channels for motor control
+uint slice_a, slice_b; //! Motor control PWM slice
 int drive_cmd; //! Forward/reverse component of throttle command
 int steer_cmd; //! Left/right component of throttle command (left positive)
 
@@ -60,15 +60,15 @@ void pop_queue(Core1Msg* obj)
     }
     else if(obj->is_user_update)
     {
-        user_lat = std::get<0>(obj->user_update);
-        user_long = std::get<1>(obj->user_update);
-        mode = std::get<2>(obj->user_update);
+        user_lat = obj->user_update.lat;
+        user_long = obj->user_update.lon;
+        mode = obj->user_update;
 
         printf(
-            "User Update: %d lat x %d long, mode %d\n",
+            "User Update: %d lat x %d long, hold %d, drive %d, test drive %d, test avoidance %d\n",
             user_lat,
             user_long,
-            mode
+            mode.hold, mode.drive, mode.test_drive, mode.test_oa
         );
     }
     else
@@ -102,42 +102,30 @@ bool motor_callback(repeating_timer_t *rt)
     int right_cmd = drive_cmd + steer_cmd;
 
     // Set left motor throttle
-    if(left_cmd >= 0)
+    if(LEFT_MOTOR_RVS ? (left_cmd < 0) : (left_cmd >= 0))
     {   
-#if LEFT_MOTOR_RVS
-        gpio_clr_mask(1 << LEFT_PIN_B);
-#else
-        gpio_set_mask(1 << LEFT_PIN_B);
-#endif
+        pwm_set_chan_level(slice_a, channel_la, 0);
+        pwm_set_chan_level(slice_b, channel_lb, MIN(abs(left_cmd), 20000));
     }
     else
     {
-#if LEFT_MOTOR_RVS
-        gpio_set_mask(1 << LEFT_PIN_B);
-#else
-        gpio_clr_mask(1 << LEFT_PIN_B);
-#endif
+        pwm_set_chan_level(slice_a, channel_la, MIN(abs(left_cmd), 20000));
+        pwm_set_chan_level(slice_b, channel_lb, 0);
     }
-    pwm_set_chan_level(slice, channel_la, MIN(abs(left_cmd), 2000));
 
     // Set right motor throttle
-    if(right_cmd >= 0)
+    if(RIGHT_MOTOR_RVS ? (right_cmd < 0) : (right_cmd >= 0))
     {   
-#if RIGHT_MOTOR_RVS
-        gpio_clr_mask(1 << RIGHT_PIN_B);
-#else
-        gpio_set_mask(1 << RIGHT_PIN_B);
-#endif
+        pwm_set_chan_level(slice_a, channel_ra, 0);
+        pwm_set_chan_level(slice_b, channel_rb, MIN(abs(right_cmd), 20000));
     }
     else
     {
-#if RIGHT_MOTOR_RVS
-        gpio_set_mask(1 << RIGHT_PIN_B);
-#else
-        gpio_clr_mask(1 << RIGHT_PIN_B);
-#endif
+        pwm_set_chan_level(slice_a, channel_ra, MIN(abs(right_cmd), 20000));
+        pwm_set_chan_level(slice_b, channel_rb, 0);
     }
-    pwm_set_chan_level(slice, channel_ra, MIN(abs(right_cmd), 2000));
+    printf("Motor update; %d left, %d right\n", left_cmd, right_cmd);
+
 
     return true; // return true to keep timer running
 }
@@ -180,11 +168,16 @@ int main()
 
     gpio_set_function(LEFT_PIN_A, GPIO_FUNC_PWM);
     gpio_set_function(RIGHT_PIN_A, GPIO_FUNC_PWM);
-    slice = pwm_gpio_to_slice_num(LEFT_PIN_A); // Left and right share the same slice
+    gpio_set_function(LEFT_PIN_B, GPIO_FUNC_PWM);
+    gpio_set_function(RIGHT_PIN_B, GPIO_FUNC_PWM);
+    slice_a = pwm_gpio_to_slice_num(LEFT_PIN_A); // Left and right share the same slice
     channel_la = pwm_gpio_to_channel(LEFT_PIN_A);
     channel_ra = pwm_gpio_to_channel(RIGHT_PIN_A);
+    slice_b = pwm_gpio_to_slice_num(LEFT_PIN_B); // Left and right share the same slice
+    channel_lb = pwm_gpio_to_channel(LEFT_PIN_B);
+    channel_rb = pwm_gpio_to_channel(RIGHT_PIN_B);
 
-    // Configure PWM frequency
+    // Configure PWM frequency of slices A and B
     pwm_config config = pwm_get_default_config();
     uint32_t clk = clock_get_hz(clk_sys); // clk_sys
     // aim at 50 Hz with counter running to 20 000
@@ -194,7 +187,8 @@ int main()
     // Set wrap to count to 20000, so the period is 20 ms
     pwm_config_set_wrap(&config, 20000);
     // Load the configuration into our PWM slice, and set it running.
-    pwm_init(slice, &config, true);
+    pwm_init(slice_a, &config, true);
+    pwm_init(slice_b, &config, true);
 
     // Setup motor update loop
     repeating_timer_t timer;
@@ -208,47 +202,48 @@ int main()
 
     while(true)
     {
-        queue_remove_blocking(&queue_to_core0, &msg);
-        pop_queue(&msg);
-
-        switch(mode)
+        if(queue_try_remove(&queue_to_core0, &msg))
         {
-            case HOLD:
-            {
-                drive_cmd = 0;
-                steer_cmd = 0;
-            }
-            case FOLLOW:
-            {
+            pop_queue(&msg);
+        }
+        
+        
+        // Handle modes of operation
+        if(mode.hold)
+        {
+            drive_cmd = 0;
+            steer_cmd = 0;
+        }
+        else if(mode.drive)
+        {
 
-            }
-            case DRIVE_TEST:
+        }
+        else if(mode.test_drive)
+        {
+            drive_cmd = DRIVE_TEST_THROTTLE;
+            steer_cmd = 0;
+        }
+        else if(mode.test_oa)
+        {
+            if(oa_dist > OA_DIST)
             {
+                // Normal drive test
                 drive_cmd = DRIVE_TEST_THROTTLE;
                 steer_cmd = 0;
             }
-            case OA_TEST:
+            else
             {
-                if(oa_dist > OA_DIST)
-                {
-                    // Normal drive test
-                    drive_cmd = DRIVE_TEST_THROTTLE;
-                    steer_cmd = 0;
-                }
-                else
-                {
-                    // Obstacle detected, steer away
-                    drive_cmd = OA_THROTTLE;
-                    steer_cmd = -oa_angle; // Sign of scanner angles is reversed from drive angles
-                    steer_cmd *= K_OA; // Apply control gain
-                }
+                // Obstacle detected, steer away
+                drive_cmd = OA_THROTTLE;
+                steer_cmd = -oa_angle; // Sign of scanner angles is reversed from drive angles
+                steer_cmd *= K_OA; // Apply control gain
             }
-            default:
-            {
-                drive_cmd = 0;
-                steer_cmd = 0;
-                mode = HOLD;
-            }
+        }
+        else
+        {
+            drive_cmd = 0;
+            steer_cmd = 0;
+            mode.hold = true;
         }
     }
 }

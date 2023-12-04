@@ -6,7 +6,7 @@
 #include <string>
 #include <tuple>
 
-std::string ui_msg = {""};
+
 #define UI_CODE_POS 'C'
 #define UI_CODE_MODE 'M'
 #define UI_MODE_HOLD "H"
@@ -14,13 +14,6 @@ std::string ui_msg = {""};
 #define UI_MODE_TEST_DRIVE "TD"
 #define UI_MODE_TEST_OA "TOA"
 
-typedef enum
-{
-    HOLD,
-    FOLLOW,
-    DRIVE_TEST,
-    OA_TEST
-} OpMode;
 
 class UIParser
 {
@@ -31,14 +24,16 @@ public:
         newdata = false;
         latitude = 0;
         longitude = 0;
-        mode = HOLD;
         msg = {""};
     }
 
-    OpMode currentMode(){return mode;}
     long userLatitude(){return latitude;}
     long userLongitude(){return longitude;}
     bool userFix(){return hasfix;}
+    bool holdMode(){return hold;}
+    bool driveMode(){return drive;}
+    bool testDriveMode(){return test_drive;}
+    bool testOAMode(){return test_oa;}
     bool newData()
     {
         if(newdata)
@@ -67,7 +62,7 @@ public:
                 // Decode input message
                 decode_msg(msg[idx], msg.substr(idx+1));
             }
-            ui_msg = {""};
+            msg = {""};
         }
         else
         {
@@ -76,13 +71,14 @@ public:
     }
 
 protected:
+    bool drive, hold, test_drive, test_oa;
     long latitude, longitude;
-    OpMode mode;
     std::string msg;
     bool hasfix, newdata;
 
     void decode_msg(char cmd, std::string data)
     {
+        printf("Decoding BLE input: %c : %s\n", cmd, data.c_str());
         newdata = true;
         switch (cmd)
         {
@@ -98,13 +94,37 @@ protected:
         case UI_CODE_MODE:
         {
             if (data.compare(UI_MODE_HOLD) == 0)
-                mode = HOLD;
+            {
+                drive = false;
+                hold = true; 
+                test_drive = false;
+                test_oa = false;
+            }
             else if (data.compare(UI_MODE_FOLLOW) == 0)
-                mode = FOLLOW;
+            {
+                drive = true;
+                hold = false; 
+                test_drive = false;
+                test_oa = false;
+            }
             else if (data.compare(UI_MODE_TEST_DRIVE) == 0)
-                mode = DRIVE_TEST;
+            {
+                drive = false;
+                hold = false; 
+                test_drive = true;
+                test_oa = false;
+            }
             else if (data.compare(UI_MODE_TEST_OA) == 0)
-                mode = OA_TEST;
+            {
+                drive = false;
+                hold = false; 
+                test_drive = false;
+                test_oa = true;
+            }
+            else
+            {
+                printf("Invalid mode %s\n", data.c_str());
+            }
             break;
         }
         default:

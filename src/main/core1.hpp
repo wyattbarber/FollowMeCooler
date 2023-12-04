@@ -22,7 +22,7 @@ void ble_rx_handle()
     {
         char c = uart_getc(BLE_UART);
         parser.newChar(c);
-        printf("%c", c);
+        // printf("%c", c);
     }
 }
 
@@ -77,6 +77,14 @@ typedef struct {
     bool fix;
 } GPSMsg;
 
+typedef struct {
+    long lat;
+    long lon;
+    bool hold;
+    bool drive;
+    bool test_drive;
+    bool test_oa;
+} ModeMsg;
 
 typedef struct {
     ScanMsg scan_update;
@@ -85,7 +93,7 @@ typedef struct {
     GPSMsg robot_gps_update;
     bool is_robot_gps_update;
 
-    std::tuple<long, long, OpMode> user_update;
+    ModeMsg user_update;
     bool is_user_update;
 } Core1Msg;
 
@@ -161,7 +169,12 @@ void main_core1()
             msg.is_user_update = true;
             msg.is_robot_gps_update = false;
 
-            msg.user_update = {parser.userLatitude(), parser.userLongitude(), parser.currentMode()};
+            msg.user_update.lat = parser.userLatitude();
+            msg.user_update.lon = parser.userLongitude();
+            msg.user_update.hold = parser.holdMode();
+            msg.user_update.drive = parser.driveMode();
+            msg.user_update.test_drive = parser.testDriveMode();
+            msg.user_update.test_oa = parser.testOAMode();
 
             queue_add_blocking(&queue_to_core0, &msg);
         }

@@ -55,6 +55,9 @@ int main()
         {
             tight_loop_contents();
         }
-        printf("%d lat x %d long, mode #%d\n", parser.userLatitude(), parser.userLongitude(), (int)parser.currentMode());
+        printf("%d lat x %d long,  hold %d, drive %d, test drive %d, test avoidance %d\n", 
+            parser.userLatitude(), parser.userLongitude(), 
+            parser.holdMode(), parser.driveMode(), parser.testDriveMode(), parser.testOAMode()
+        );
     }
 }
