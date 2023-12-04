@@ -68,9 +68,9 @@ void echo_callback(uint gpio, uint32_t events)
     {
         t_rise = time_us_64();
     }
-}
-
-
+} 
+ 
+ 
 typedef struct {
     int angle_of_path;
     float min_dist;
