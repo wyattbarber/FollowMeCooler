@@ -102,6 +102,29 @@ public:
         }
     }
 
+    /** Obstacle "weights" of left and right sides
+     * 
+     * @return pair (left, right)
+    */
+    std::pair<float, float> weights()
+    {
+        float left = 0.0;
+        float right = 0.0;
+        for(size_t i = 0; i < dist_hold.size(); ++i)
+        {
+            if(i <= N/2)
+            {
+                right += dist_hold[i];
+            }
+            else
+            {
+                left += dist_hold[i];
+            }
+        }
+        float sum = left + right;
+        return {left / sum, right / sum};
+    }
+
     int path_angle()
     {
         // moving_average(0.7);

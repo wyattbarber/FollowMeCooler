@@ -34,10 +34,9 @@ double hav(double theta)
 */
 float dist(long lat1, long lat2, long long1, long long2)
 {
-    double a = hav(static_cast<double>(lat2 - lat1) / 1E6);
-    double b = cos(lat1 * M_PI / 180E6) * cos(lat2 * M_PI / 180E6);
-    double c = hav(static_cast<double>(long2 - long1) / 1E6);
-    return static_cast<float>(R_EARTH_M * 2.0 * atan2(sqrt(a + (b*c)), sqrt(1.0 - (a + (b*c)))));
+    float dlat = static_cast<float>(lat2 - lat1) * M_PI * (R_EARTH_M / 180E6);
+    float dlon = static_cast<float>(long2 - long1) * M_PI * (R_EARTH_M / 180E6);
+    return sqrt(pow(dlat, 2.0) + pow(dlon, 2.0));
 }
 
 
@@ -61,11 +60,9 @@ float dist(long lat1, long lat2, long long1, long long2)
 */
 float angle(long lat1, long lat2, long long1, long long2)
 {
-    double x = cos(static_cast<double>(lat2) * M_PI / 180E6) * sin(static_cast<double>(long2 - long1) * M_PI / 180E6);
-    double y1 = cos(static_cast<double>(lat1) * M_PI / 180E6) * sin(static_cast<double>(lat2) * M_PI / 180E6); 
-    double y2 = sin(static_cast<double>(lat1) * M_PI / 180E6) * cos(static_cast<double>(lat2) * M_PI / 180E6) * cos(static_cast<double>(long2 - long1) * M_PI / 180E6);
-    double brng = atan2(x, y1-y2);
-    return static_cast<double>(brng * 180.0 / M_PI);
+    float dlat = static_cast<float>(lat2 - lat1);
+    float dlon = static_cast<float>(long2 - long1);
+    return atan2(dlon, dlat) * 180.0 / M_PI;
 }
 
 }

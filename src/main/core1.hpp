@@ -11,8 +11,9 @@
 #include <string.h>
 #include "MicroNMEA.h"
 
-#define US_PERIOD_MS 10 //! Period in ms between each ultrasonic measurement
+#define US_PERIOD_MS 20 //! Period in ms between each ultrasonic measurement
 #define US_SAMPLES 50 //! Number of ultrasonic measurments per scan
+#define N_GPS 100
 
 UIParser parser;
 
@@ -29,6 +30,7 @@ void ble_rx_handle()
 char nmea_in[128]; // Allocate buffer of max NMEA scentence size
 MicroNMEA decoder(nmea_in, 128);
 bool new_gps = false;
+uint8_t n_gps = 0;
 
 void gps_rx_handle()
 {
@@ -67,6 +69,8 @@ void echo_callback(uint gpio, uint32_t events)
 typedef struct {
     int angle_of_path;
     float min_dist;
+    float weight_right;
+    float weight_left;
 } ScanMsg;
 
 typedef struct {
@@ -142,24 +146,32 @@ void main_core1()
 
             msg.scan_update.angle_of_path = scan_data->path_angle();
             msg.scan_update.min_dist = scan_data->min();
+            auto w = scan_data->weights();
+            msg.scan_update.weight_left = w.first;
+            msg.scan_update.weight_right = w.second;
 
             queue_add_blocking(&queue_to_core0, &msg);
         }
         else if(new_gps)
         {
-            new_gps = false;
+            ++n_gps;
+            if(n_gps >= N_GPS)
+            {
+                n_gps = 0;
+                new_gps = false;
 
-            Core1Msg msg;
+                Core1Msg msg;
 
-            msg.is_scan_update = false;
-            msg.is_user_update = false;
-            msg.is_robot_gps_update = true;
+                msg.is_scan_update = false;
+                msg.is_user_update = false;
+                msg.is_robot_gps_update = true;
 
-            msg.robot_gps_update.lat = decoder.getLatitude(), 
-            msg.robot_gps_update.lon = decoder.getLongitude(), 
-            msg.robot_gps_update.fix = decoder.getNumSatellites() >= 3;
+                msg.robot_gps_update.lat = decoder.getLatitude(), 
+                msg.robot_gps_update.lon = decoder.getLongitude(), 
+                msg.robot_gps_update.fix = decoder.getNumSatellites() >= 3;
 
-            queue_add_blocking(&queue_to_core0, &msg);
+                queue_add_blocking(&queue_to_core0, &msg);
+            }
         }        
         else if(parser.newData())
         {

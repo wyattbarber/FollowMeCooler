@@ -11,19 +11,24 @@
 #define LEFT_MOTOR_RVS false //! Reverse throttle commands to left motor
 #define RIGHT_MOTOR_RVS true //! Reverse throttle commands to right motor
 
-#define DRIVE_TEST_THROTTLE 10000 //! Throttle command for testing drive
+#define DRIVE_TEST_THROTTLE 20000 //! Throttle command for testing drive
 
-#define OA_DIST 700.0 //! Min clearance (mm) from obstacles, below which obstacle avoiance mode is triggered
-#define OA_THROTTLE 5000 //! Drive throttle for obstacle avoidanve mode
+#define OA_THROTTLE_MIN 5000 //! Drive throttle for obstacle avoidanve mode
+#define OA_THROTTLE_MAX DRIVE_TEST_THROTTLE
+#define OA_CLEAR_MIN 300.0
+#define OA_CLEAR_MAX 2000.0
 #define K_OA 50 //! Proportional control constance for obstacle avoidance
 
 bool fix = false; //! Robot GPS has a planar position fix
 long robot_lat, robot_long; //! Current robot GPS coordinates, in millionths of degrees
 float robot_heading, robot_speed; //! Velocity data extrapolted form GPS coordinates
+
 long user_lat, user_long; //! Latest position of user, in millionths of degrees
 ModeMsg mode; //! Current mode of operation selected by user
+
 int oa_angle; //! Angle of most open path determined by scanner (positive is right)
 float oa_dist; //! Distance of closest object detected by scanner in mm
+float oa_wr, oa_wl = 0.0;
 
 uint channel_la, channel_ra, channel_lb, channel_rb; //! PWM channels for motor control
 uint slice_a, slice_b; //! Motor control PWM slice
@@ -31,17 +36,38 @@ int drive_cmd; //! Forward/reverse component of throttle command
 int steer_cmd; //! Left/right component of throttle command (left positive)
 
 
-void pop_queue(Core1Msg* obj)
+int oa_throttle(float clearance)
+{
+    if(clearance < OA_CLEAR_MIN)
     {
+        return OA_THROTTLE_MIN;
+    }
+    else if(clearance > OA_CLEAR_MAX)
+    {
+        return OA_THROTTLE_MAX;
+    }
+    else{
+        float diff = clearance - OA_CLEAR_MIN;
+        float slope = static_cast<float>(OA_THROTTLE_MAX - OA_THROTTLE_MIN) / (OA_CLEAR_MAX - OA_CLEAR_MIN);
+        return OA_THROTTLE_MIN + static_cast<int>(slope * diff);
+    }
+}
+
+
+void pop_queue(Core1Msg* obj)
+{
     if(obj->is_scan_update)
     {
         oa_angle = obj->scan_update.angle_of_path;
         oa_dist = obj->scan_update.min_dist;
-        printf(
-            "Scanner Update: path %d degrees, object %f mm\n", 
-            oa_angle,
-            oa_dist
-        );
+        oa_wl = obj->scan_update.weight_left;
+        oa_wr = obj->scan_update.weight_right;
+        // printf(
+        //     "Scanner Update: path %d degrees, object %f mm, weights %f l, %f r\n", 
+        //     oa_angle,
+        //     oa_dist,
+        //     oa_wl, oa_wr
+        // );
     }
     else if(obj->is_robot_gps_update)
     {
@@ -52,10 +78,10 @@ void pop_queue(Core1Msg* obj)
         robot_speed = obj->robot_gps_update.speed;
 
         printf(
-            "Robot Position Update: fix %d, %f m from user, %d degrees heading, %d speed\n",
+            "Robot Position Update: fix %d, %f m from user, %f degrees heading\n",
             fix,
             nav::dist(robot_lat, user_lat, robot_long, user_long),
-            robot_heading, robot_speed
+            nav::angle(robot_lat, user_lat, robot_long, user_long)
         );
     }
     else if(obj->is_user_update)
@@ -124,7 +150,7 @@ bool motor_callback(repeating_timer_t *rt)
         pwm_set_chan_level(slice_a, channel_ra, MIN(abs(right_cmd), 20000));
         pwm_set_chan_level(slice_b, channel_rb, 0);
     }
-    printf("Motor update; %d left, %d right\n", left_cmd, right_cmd);
+    // printf("Motor update; %d left, %d right\n", left_cmd, right_cmd);
 
 
     return true; // return true to keep timer running
@@ -206,8 +232,7 @@ int main()
         {
             pop_queue(&msg);
         }
-        
-        
+                 
         // Handle modes of operation
         if(mode.hold)
         {
@@ -225,19 +250,8 @@ int main()
         }
         else if(mode.test_oa)
         {
-            if(oa_dist > OA_DIST)
-            {
-                // Normal drive test
-                drive_cmd = DRIVE_TEST_THROTTLE;
-                steer_cmd = 0;
-            }
-            else
-            {
-                // Obstacle detected, steer away
-                drive_cmd = OA_THROTTLE;
-                steer_cmd = -oa_angle; // Sign of scanner angles is reversed from drive angles
-                steer_cmd *= K_OA; // Apply control gain
-            }
+            drive_cmd = oa_throttle(oa_dist);
+            steer_cmd = -(oa_angle * K_OA);
         }
         else
         {
