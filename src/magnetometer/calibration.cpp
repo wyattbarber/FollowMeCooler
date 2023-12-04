@@ -6,43 +6,7 @@
 #include <algorithm>
 #include <cmath>
 
-#define MIN_X -354
-#define MAX_X 78
-#define MIN_Y -258
-#define MAX_Y 199
-#define MIN_Z -633
-#define MAX_Z -329
-
-float normalize(int x, int min, int max)
-{
-    float d = static_cast<float>(x - min);
-    return d / static_cast<float>(max - min);
-}
-
-
-int16_t mean(std::vector<int16_t> v)
-{
-    int s = 0;
-    for(auto x = v.begin(); x != v.end(); ++x)
-    {
-        s += *x;
-    }
-    return s / v.size(); 
-}
-
-uint16_t devsqr(std::vector<int16_t> v)
-{
-    auto xm = mean(v);
-    int s = 0;
-    for(auto x = v.begin(); x != v.end(); ++x)
-    {   
-        int d = *x - xm;
-        s += (d * d);
-    }
-    return s / (v.size() - 1);
-    
-}
-
+#define BATCH 10
 
 int main()
 {
@@ -71,11 +35,34 @@ int main()
     uint8_t y_reg_buf[] = {COMP_Y_REG | 0x80};
     uint8_t z_reg_buf[] = {COMP_Z_REG | 0x80};
     int16_t buf[3];
+    
+    // Collect first point
+    i2c_write_blocking(COMP_I2C, COMP_ADDR, x_reg_buf, 1, true);
+    if(i2c_read_blocking(COMP_I2C, COMP_ADDR, (uint8_t*)buf, 6, false) != 6)
+    {
+        printf("Error reading data\n");
+    }
+    auto x1 = buf[0];
+    auto y1 = buf[1];
+    auto z1 = buf[2];
 
-    std::vector<int16_t> x;
-    std::vector<int16_t> y;
-    std::vector<int16_t> z;
-    size_t i = 0;
+    // Collect second point
+    i2c_write_blocking(COMP_I2C, COMP_ADDR, x_reg_buf, 1, true);
+    if(i2c_read_blocking(COMP_I2C, COMP_ADDR, (uint8_t*)buf, 6, false) != 6)
+    {       
+        printf("Error reading data\n");
+    }
+    auto x2 = buf[0];
+    auto y2 = buf[1];
+    auto z2 = buf[2];
+
+    auto xmin = MIN(x1, x2);
+    auto xmax = MAX(x1, x2);
+    auto ymin = MIN(y1, y2);
+    auto ymax = MAX(y1, y2);
+    auto zmin = MIN(z1, z2);
+    auto zmax = MAX(z1, z2);
+
     while(true)
     {
         // Collect data
@@ -83,22 +70,21 @@ int main()
         if(i2c_read_blocking(COMP_I2C, COMP_ADDR, (uint8_t*)buf, 6, false) != 6)
         {
             printf("Error reading data\n");
+
         }
 
-        
-        int16_t _x = buf[0];
-        int16_t _y = buf[1];
-        int16_t _z = buf[2];         
-        // Log data
-        printf("\tX: %d\n", _x);
-        printf("\tY: %d\n", _y);
-        printf("\tZ: %d\n", _z);
-        printf("\tHeading: %f degrees", atan2(normalize(_y, MIN_Y, MAX_Y), normalize(_x, MIN_X, MAX_X)) * 180.0 / M_PI);
-        // printf("\tHeading: %f degrees", atan2(static_cast<float>(_y), static_cast<float>(_x)) * 180.0 / M_PI);
+        xmin = MIN(xmin, buf[0]);
+        xmax = MAX(xmax, buf[0]);
+        ymin = MIN(ymin, buf[1]);
+        ymax = MAX(ymax, buf[1]);
+        zmin = MIN(zmin, buf[2]);
+        zmax = MAX(zmax, buf[2]);
+
+        printf("\tX: %d to %d", xmin, xmax);
+        printf("\tY: %d to %d", ymin, ymax);
+        printf("\tZ: %d to %d", zmin, zmax);
         printf("\n");
 
-        ++i;  
         sleep_ms(10);
     }
-
 }
