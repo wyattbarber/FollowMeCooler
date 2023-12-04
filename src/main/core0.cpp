@@ -17,13 +17,17 @@
 #define OA_THROTTLE_MAX DRIVE_TEST_THROTTLE
 #define OA_CLEAR_MIN 300.0
 #define OA_CLEAR_MAX 2000.0
-#define K_OA 50 //! Proportional control constance for obstacle avoidance
+
+#define KS 50 //! Proportional control constant for heading correction
 
 bool fix = false; //! Robot GPS has a planar position fix
 long robot_lat, robot_long; //! Current robot GPS coordinates, in millionths of degrees
 float robot_heading, robot_speed; //! Velocity data extrapolted form GPS coordinates
+unsigned long t_prev_gps; //! Time of last gps update
 
 long user_lat, user_long; //! Latest position of user, in millionths of degrees
+int user_heading; //! Direction to user, in degrees from north (westward is positive rotation)
+int user_dist; //! Distance to user in meters
 ModeMsg mode; //! Current mode of operation selected by user
 
 int oa_angle; //! Angle of most open path determined by scanner (positive is right)
@@ -33,7 +37,7 @@ float oa_wr, oa_wl = 0.0;
 uint channel_la, channel_ra, channel_lb, channel_rb; //! PWM channels for motor control
 uint slice_a, slice_b; //! Motor control PWM slice
 int drive_cmd; //! Forward/reverse component of throttle command
-int steer_cmd; //! Left/right component of throttle command (left positive)
+int target_heading; //! Intended direction of driving
 
 
 int oa_throttle(float clearance)
@@ -71,17 +75,29 @@ void pop_queue(Core1Msg* obj)
     }
     else if(obj->is_robot_gps_update)
     {
+        robot_heading = nav::angle(
+            robot_lat, obj->robot_gps_update.lat,
+            robot_long, obj->robot_gps_update.lon
+        );
+        robot_speed = nav::dist(
+            robot_lat, obj->robot_gps_update.lat,
+            robot_long, obj->robot_gps_update.lon
+        ) / static_cast<float>(time_us_64() - t_prev_gps);
+        robot_speed *= 1E6; // Convert m/us to m/s   
+        
         fix = obj->robot_gps_update.fix;
         robot_lat = obj->robot_gps_update.lat;
         robot_long = obj->robot_gps_update.lon;
-        robot_heading = obj->robot_gps_update.course;
-        robot_speed = obj->robot_gps_update.speed;
+
+        user_heading = static_cast<int>(nav::angle(robot_lat, user_lat, robot_long, user_long));
+        user_dist = static_cast<int>(nav::dist(robot_lat, user_lat, robot_long, user_long));
 
         printf(
-            "Robot Position Update: fix %d, %f m from user, %f degrees heading\n",
+            "Robot Position Update: fix %d %dx%d, %d m from user at %d, %f m/s at %f degrees heading\n",
             fix,
-            nav::dist(robot_lat, user_lat, robot_long, user_long),
-            nav::angle(robot_lat, user_lat, robot_long, user_long)
+            robot_lat, robot_long,
+            user_dist, user_heading,
+            robot_speed, robot_heading
         );
     }
     else if(obj->is_user_update)
@@ -110,7 +126,7 @@ uint8_t y_reg_buf[] = {COMP_Y_REG};
 uint8_t y_reg[] = {0, 0};
 bool motor_callback(repeating_timer_t *rt)
 {
-    // // Read I2C magnetometer data
+    // Read I2C magnetometer data
     // i2c_write_blocking(COMP_I2C, COMP_ADDR, x_reg_buf, 1, true);
     // i2c_read_blocking(COMP_I2C, COMP_ADDR, x_reg, 2, false);
     // i2c_write_blocking(COMP_I2C, COMP_ADDR, y_reg_buf, 1, true);
@@ -122,6 +138,14 @@ bool motor_callback(repeating_timer_t *rt)
     // while(heading > 360.0) heading -= 360.0;
     // while(heading < 0.0) heading += 360.0;
     // printf("Orientation Update: %f degrees heading\n", heading);
+
+    // Calculate error in heading
+    int heading_error = 0;
+    if(drive_cmd != 0)
+    {
+        heading_error = static_cast<int>(robot_heading) - target_heading;
+    }
+    int steer_cmd = -(heading_error * KS);
 
     // Calculate left/right commands from drive and steer
     int left_cmd = drive_cmd - steer_cmd;
@@ -234,29 +258,35 @@ int main()
         }
                  
         // Handle modes of operation
-        if(mode.hold)
+        if(mode.hold) // Hold position (idle)
         {
             drive_cmd = 0;
-            steer_cmd = 0;
         }
-        else if(mode.drive)
+        else if(mode.drive) // Drive towards user
         {
-
+            if(user_dist <= 3.0)
+            {
+                drive_cmd = 0;
+            }
+            else
+            {
+                drive_cmd = 10000;
+            }
+            target_heading = user_heading;
         }
-        else if(mode.test_drive)
+        else if(mode.test_drive) // Test the drive system
         {
             drive_cmd = DRIVE_TEST_THROTTLE;
-            steer_cmd = 0;
+            target_heading = robot_heading;
         }
-        else if(mode.test_oa)
+        else if(mode.test_oa) // Test obstacle avoidance system
         {
             drive_cmd = oa_throttle(oa_dist);
-            steer_cmd = -(oa_angle * K_OA);
+            target_heading = static_cast<int>(robot_heading) - oa_angle;
         }
         else
         {
             drive_cmd = 0;
-            steer_cmd = 0;
             mode.hold = true;
         }
     }

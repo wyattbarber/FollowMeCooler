@@ -62,7 +62,7 @@ float angle(long lat1, long lat2, long long1, long long2)
 {
     float dlat = static_cast<float>(lat2 - lat1);
     float dlon = static_cast<float>(long2 - long1);
-    return atan2(dlon, dlat) * 180.0 / M_PI;
+    return atan2(-dlon, dlat) * 180.0 / M_PI;
 }
 
 }

@@ -13,7 +13,7 @@
 
 #define US_PERIOD_MS 20 //! Period in ms between each ultrasonic measurement
 #define US_SAMPLES 50 //! Number of ultrasonic measurments per scan
-#define N_GPS 100
+#define N_GPS 10
 
 UIParser parser;
 
@@ -26,6 +26,7 @@ void ble_rx_handle()
         // printf("%c", c);
     }
 }
+
 
 char nmea_in[128]; // Allocate buffer of max NMEA scentence size
 MicroNMEA decoder(nmea_in, 128);
