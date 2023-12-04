@@ -157,6 +157,21 @@ bool motor_callback(repeating_timer_t *rt)
     // Calculate left/right commands from drive and steer
     int left_cmd = drive_cmd - steer_cmd;
     int right_cmd = drive_cmd + steer_cmd;
+    
+    if(mode.test_drive)
+    {
+        left_cmd = mode.throttle;
+        right_cmd = mode.throttle;
+
+        if(mode.steer > 0)
+        {
+            right_cmd += steer_cmd / 2;
+        }
+        else
+        {
+            left_cmd += steer_cmd / 2;
+        }
+    }
 
     // Set left motor throttle
     if(LEFT_MOTOR_RVS ? (left_cmd < 0) : (left_cmd >= 0))
@@ -291,8 +306,7 @@ int main()
         }
         else if(mode.test_drive) // Test the drive system
         {
-            drive_cmd = DRIVE_TEST_THROTTLE;
-            target_heading = robot_heading;
+            // Do nothing, this case is done directly in the motor control callback
         }
         else if(mode.test_oa) // Test obstacle avoidance system
         {

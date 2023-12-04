@@ -93,6 +93,8 @@ typedef struct {
     bool drive;
     bool test_drive;
     bool test_oa;
+    long throttle;
+    long steer;
 } ModeMsg;
 
 typedef struct {
@@ -192,6 +194,8 @@ void main_core1()
             msg.user_update.drive = parser.driveMode();
             msg.user_update.test_drive = parser.testDriveMode();
             msg.user_update.test_oa = parser.testOAMode();
+            msg.user_update.throttle = parser.driveCommand();
+            msg.user_update.steer = parser.steerCommand();
 
             scan_enabled = parser.driveMode() || parser.testOAMode(); // Disable scanning when not used to limit servo power usage
 

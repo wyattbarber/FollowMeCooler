@@ -9,6 +9,8 @@
 
 #define UI_CODE_POS 'C'
 #define UI_CODE_MODE 'M'
+#define UI_CODE_DRIVE 'W'
+#define UI_CODE_STEER 'S'
 #define UI_MODE_HOLD "H"
 #define UI_MODE_FOLLOW "F"
 #define UI_MODE_TEST_DRIVE "TD"
@@ -24,6 +26,8 @@ public:
         newdata = false;
         latitude = 0;
         longitude = 0;
+        drive_cmd = 0;
+        steer_cmd = 0;
         msg = {""};
     }
 
@@ -34,6 +38,8 @@ public:
     bool driveMode(){return drive;}
     bool testDriveMode(){return test_drive;}
     bool testOAMode(){return test_oa;}
+    long driveCommand(){return drive_cmd;}
+    long steerCommand(){return steer_cmd;}
     bool newData()
     {
         if(newdata)
@@ -73,6 +79,7 @@ public:
 protected:
     bool drive, hold, test_drive, test_oa;
     long latitude, longitude;
+    long drive_cmd, steer_cmd;
     std::string msg;
     bool hasfix, newdata;
 
@@ -125,6 +132,16 @@ protected:
             {
                 printf("Invalid mode %s\n", data.c_str());
             }
+            break;
+        }
+        case UI_CODE_DRIVE:
+        {
+            drive_cmd = std::stol(data);
+            break;
+        }
+        case UI_CODE_STEER:
+        {
+            steer_cmd = std::stol(data);
             break;
         }
         default:
