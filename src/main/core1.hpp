@@ -47,10 +47,14 @@ void gps_rx_handle()
 
 ScannerData *scan_data;
 uint64_t t_rise;
+bool scan_enabled = false;
 
 bool sampler_callback(repeating_timer_t *rt)
 {
-    scan_data->trigger();
+    if(scan_enabled)
+    {
+        scan_data->trigger();
+    }
     return true;
 }
 
@@ -188,6 +192,8 @@ void main_core1()
             msg.user_update.drive = parser.driveMode();
             msg.user_update.test_drive = parser.testDriveMode();
             msg.user_update.test_oa = parser.testOAMode();
+
+            scan_enabled = parser.driveMode() || parser.testOAMode(); // Disable scanning when not used to limit servo power usage
 
             queue_add_blocking(&queue_to_core0, &msg);
         }

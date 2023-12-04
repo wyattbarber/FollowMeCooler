@@ -18,6 +18,10 @@
 #define OA_CLEAR_MIN 300.0
 #define OA_CLEAR_MAX 2000.0
 
+#define FOLLOW_THROTTLE_HIGH 20000
+#define FOLLOW_THROTTLE_MID 10000
+#define FOLLOW_THROTTLE_LOW 5000
+
 #define KS 50 //! Proportional control constant for heading correction
 
 bool fix = false; //! Robot GPS has a planar position fix
@@ -75,16 +79,19 @@ void pop_queue(Core1Msg* obj)
     }
     else if(obj->is_robot_gps_update)
     {
-        robot_heading = nav::angle(
+        float new_robot_heading = nav::angle(
             robot_lat, obj->robot_gps_update.lat,
             robot_long, obj->robot_gps_update.lon
         );
-        robot_speed = nav::dist(
+        robot_heading = (0.7 * new_robot_heading) + (0.3 * robot_heading);
+
+        float new_robot_speed = nav::dist(
             robot_lat, obj->robot_gps_update.lat,
             robot_long, obj->robot_gps_update.lon
         ) / static_cast<float>(time_us_64() - t_prev_gps);
-        robot_speed *= 1E6; // Convert m/us to m/s   
-        
+        new_robot_speed *= 1E6; // Convert m/us to m/s   
+        robot_speed = (0.7 * new_robot_speed) + (0.3 * robot_speed);
+
         fix = obj->robot_gps_update.fix;
         robot_lat = obj->robot_gps_update.lat;
         robot_long = obj->robot_gps_update.lon;
@@ -174,7 +181,7 @@ bool motor_callback(repeating_timer_t *rt)
         pwm_set_chan_level(slice_a, channel_ra, MIN(abs(right_cmd), 20000));
         pwm_set_chan_level(slice_b, channel_rb, 0);
     }
-    // printf("Motor update; %d left, %d right\n", left_cmd, right_cmd);
+    printf("Motor update; %d left, %d right\n", left_cmd, right_cmd);
 
 
     return true; // return true to keep timer running
@@ -268,9 +275,17 @@ int main()
             {
                 drive_cmd = 0;
             }
+            else if(user_dist <= 10.0)
+            {
+                drive_cmd = FOLLOW_THROTTLE_LOW;
+            }
+            else if(user_dist <= 50)
+            {
+                drive_cmd = FOLLOW_THROTTLE_MID;
+            }
             else
             {
-                drive_cmd = 10000;
+                drive_cmd = FOLLOW_THROTTLE_HIGH;
             }
             target_heading = user_heading;
         }
