@@ -208,11 +208,8 @@ int main()
 
     while(true)
     {
-        if(queue_try_remove(&queue_to_core0, &msg))
-        {
-            pop_queue(&msg);
-    
-        }
+        queue_remove_blocking(&queue_to_core0, &msg);
+        pop_queue(&msg);
 
         switch(mode)
         {
