@@ -63,6 +63,14 @@ public:
             {
                 idx = msg.find(UI_CODE_MODE);
             }
+            if(idx == std::string::npos)
+            {
+                idx = msg.find(UI_CODE_DRIVE);
+            }
+            if(idx == std::string::npos)
+            {
+                idx = msg.find(UI_CODE_STEER);
+            }
             if(idx != std::string::npos)
             {
                 // Decode input message

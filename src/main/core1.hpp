@@ -23,7 +23,7 @@ void ble_rx_handle()
     {
         char c = uart_getc(BLE_UART);
         parser.newChar(c);
-        // printf("%c", c);
+        printf("%c", c);
     }
 }
 

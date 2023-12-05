@@ -22,7 +22,7 @@
 #define FOLLOW_THROTTLE_MID 10000
 #define FOLLOW_THROTTLE_LOW 5000
 
-#define KS 50 //! Proportional control constant for heading correction
+#define KS 5 //! Proportional control constant for heading correction
 
 bool fix = false; //! Robot GPS has a planar position fix
 long robot_lat, robot_long; //! Current robot GPS coordinates, in millionths of degrees
@@ -114,10 +114,11 @@ void pop_queue(Core1Msg* obj)
         mode = obj->user_update;
 
         printf(
-            "User Update: %d lat x %d long, hold %d, drive %d, test drive %d, test avoidance %d\n",
+            "User Update: %d lat x %d long, hold %d, drive %d, test drive %d, test avoidance %d, test commadn %d x %d\n",
             user_lat,
             user_long,
-            mode.hold, mode.drive, mode.test_drive, mode.test_oa
+            mode.hold, mode.drive, mode.test_drive, mode.test_oa,
+            mode.throttle, mode.steer
         );
     }
     else
@@ -160,17 +161,10 @@ bool motor_callback(repeating_timer_t *rt)
     
     if(mode.test_drive)
     {
-        left_cmd = mode.throttle;
-        right_cmd = mode.throttle;
-
-        if(mode.steer > 0)
-        {
-            right_cmd += steer_cmd / 2;
-        }
-        else
-        {
-            left_cmd += steer_cmd / 2;
-        }
+        left_cmd = mode.throttle - (mode.steer / 2);
+        right_cmd = mode.throttle + (mode.steer / 2);
+        left_cmd = MAX(0, left_cmd);
+        right_cmd = MAX(0, right_cmd); 
     }
 
     // Set left motor throttle
