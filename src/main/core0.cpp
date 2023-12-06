@@ -39,7 +39,6 @@ ModeMsg mode; //! Current mode of operation selected by user
 
 int oa_angle; //! Angle of most open path determined by scanner (positive is right)
 float oa_dist; //! Distance of closest object detected by scanner in mm
-float oa_wr, oa_wl = 0.0;
 
 uint channel_la, channel_ra, channel_lb, channel_rb; //! PWM channels for motor control
 uint slice_a, slice_b; //! Motor control PWM slice
@@ -65,20 +64,28 @@ int oa_throttle(float clearance)
 }
 
 
+long map(long x, long in_min, long in_max, long out_min, long out_max)
+{
+  return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+}   
 void pop_queue(Core1Msg* obj)
 {
     if(obj->is_scan_update)
     {
         oa_angle = obj->scan_update.angle_of_path;
         oa_dist = obj->scan_update.min_dist;
-        oa_wl = obj->scan_update.weight_left;
-        oa_wr = obj->scan_update.weight_right;
-        // printf(
-        //     "Scanner Update: path %d degrees, object %f mm, weights %f l, %f r\n", 
-        //     oa_angle,
-        //     oa_dist,
-        //     oa_wl, oa_wr
-        // );
+        printf(
+            "Scanner Update: path %d degrees, object %f mm\n", 
+            oa_angle,
+            oa_dist
+        );
+        printf("Scanner Data:");
+        for(size_t i = 0; i < obj->scan_update.data.size(); ++i)
+        {
+            int theta_d = (i * 90) / obj->scan_update.data.size() - 45;
+            printf("%d:%f,", theta_d, obj->scan_update.data[i]);
+        }
+        printf(";%d\n", oa_angle);
     }
     else if(obj->is_robot_gps_update)
     {

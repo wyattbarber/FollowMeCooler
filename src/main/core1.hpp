@@ -11,9 +11,9 @@
 #include <string.h>
 #include "MicroNMEA.h"
 
-#define US_PERIOD_MS 20 //! Period in ms between each ultrasonic measurement
+#define US_PERIOD_MS 10 //! Period in ms between each ultrasonic measurement
 #define US_SAMPLES 50 //! Number of ultrasonic measurments per scan
-#define N_GPS 10
+#define N_GPS 10 //! Report every Nth coordinate to minimize excess data sent between CPUs
 
 UIParser parser;
 
@@ -76,6 +76,7 @@ typedef struct {
     float min_dist;
     float weight_right;
     float weight_left;
+    std::vector<float> data;
 } ScanMsg;
 
 typedef struct {
@@ -153,9 +154,10 @@ void main_core1()
 
             msg.scan_update.angle_of_path = scan_data->path_angle();
             msg.scan_update.min_dist = scan_data->min();
-            auto w = scan_data->weights();
-            msg.scan_update.weight_left = w.first;
-            msg.scan_update.weight_right = w.second;
+            msg.scan_update.data = scan_data->data();
+            // auto w = scan_data->weights();
+            // msg.scan_update.weight_left = w.first;
+            // msg.scan_update.weight_right = w.second;
 
             queue_add_blocking(&queue_to_core0, &msg);
         }
