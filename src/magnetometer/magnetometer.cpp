@@ -15,7 +15,8 @@
 
 float normalize(int x, int min, int max)
 {
-    float d = static_cast<float>(x - min);
+    float m = static_cast<float>(min + max) / 2.0;
+    float d = static_cast<float>(x - m);
     return d / static_cast<float>(max - min);
 }
 

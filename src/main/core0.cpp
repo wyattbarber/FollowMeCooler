@@ -13,16 +13,19 @@
 
 #define DRIVE_TEST_THROTTLE 20000 //! Throttle command for testing drive
 
-#define OA_THROTTLE_MIN 5000 //! Drive throttle for obstacle avoidanve mode
-#define OA_THROTTLE_MAX DRIVE_TEST_THROTTLE
-#define OA_CLEAR_MIN 300.0
-#define OA_CLEAR_MAX 2000.0
+#define OA_THROTTLE_MIN 5000 //! Low drive throttle for obstacle avoidance mode
+#define OA_THROTTLE_MAX 10000 //! High drive throttle for obstacle avoidance mode
+#define OA_CLEAR_MIN 300.0 //! Clearance at which to use lowest throttle
+#define OA_CLEAR_MAX 1000.0 //! Clearance at which to use highest throttle, or deactivate obstacle avoidance
 
 #define FOLLOW_THROTTLE_HIGH 20000
 #define FOLLOW_THROTTLE_MID 10000
 #define FOLLOW_THROTTLE_LOW 5000
 
-#define KS 5 //! Proportional control constant for heading correction
+#define K_NEAR 50 //! Proportional control constant for heading correction at close distance
+#define K_MID 35 //! Proportional control constant for heading correction at far distance
+#define K_FAR 20 //! Proportional control constant for heading correction at far distance
+int Ks = K_NEAR; //! Currently used heading correction gain
 
 bool fix = false; //! Robot GPS has a planar position fix
 long robot_lat, robot_long; //! Current robot GPS coordinates, in millionths of degrees
@@ -153,7 +156,7 @@ bool motor_callback(repeating_timer_t *rt)
     {
         heading_error = static_cast<int>(robot_heading) - target_heading;
     }
-    int steer_cmd = -(heading_error * KS);
+    int steer_cmd = -(heading_error * Ks);
 
     // Calculate left/right commands from drive and steer
     int left_cmd = drive_cmd - steer_cmd;
@@ -278,35 +281,52 @@ int main()
         {
             drive_cmd = 0;
         }
+
         else if(mode.drive) // Drive towards user
         {
-            if(user_dist <= 3.0)
+            if(oa_dist < OA_CLEAR_MAX)
             {
-                drive_cmd = 0;
+                drive_cmd = oa_throttle(oa_dist);
+                target_heading = static_cast<int>(robot_heading) - oa_angle;
+                Ks = K_NEAR;
             }
-            else if(user_dist <= 10.0)
+            else 
             {
-                drive_cmd = FOLLOW_THROTTLE_LOW;
+                target_heading = user_heading;
+                if(user_dist <= 5.0)
+                {
+                    drive_cmd = 0;
+                }
+                else if(user_dist <= 10.0)
+                {
+                    drive_cmd = FOLLOW_THROTTLE_LOW;
+                    Ks = K_NEAR;
+                }
+                else if(user_dist <= 50)
+                {
+                    drive_cmd = FOLLOW_THROTTLE_MID;
+                    Ks = K_MID;
+                }
+                else
+                {
+                    drive_cmd = FOLLOW_THROTTLE_HIGH;
+                    Ks = K_FAR;
+                }
             }
-            else if(user_dist <= 50)
-            {
-                drive_cmd = FOLLOW_THROTTLE_MID;
-            }
-            else
-            {
-                drive_cmd = FOLLOW_THROTTLE_HIGH;
-            }
-            target_heading = user_heading;
         }
+
         else if(mode.test_drive) // Test the drive system
         {
             // Do nothing, this case is done directly in the motor control callback
         }
+
         else if(mode.test_oa) // Test obstacle avoidance system
         {
             drive_cmd = oa_throttle(oa_dist);
             target_heading = static_cast<int>(robot_heading) - oa_angle;
+            Ks = K_NEAR;
         }
+
         else
         {
             drive_cmd = 0;
