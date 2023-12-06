@@ -63,11 +63,7 @@ int oa_throttle(float clearance)
     }
 }
 
-
-long map(long x, long in_min, long in_max, long out_min, long out_max)
-{
-  return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
-}   
+  
 void pop_queue(Core1Msg* obj)
 {
     if(obj->is_scan_update)
@@ -173,9 +169,11 @@ bool motor_callback(repeating_timer_t *rt)
     {
         left_cmd = mode.throttle - (mode.steer / 2);
         right_cmd = mode.throttle + (mode.steer / 2);
-        left_cmd = MAX(0, left_cmd);
-        right_cmd = MAX(0, right_cmd); 
     }
+
+    // Prevent backwards motion, as casters will lock
+    left_cmd = MAX(0, left_cmd);
+    right_cmd = MAX(0, right_cmd); 
 
     // Set left motor throttle
     if(LEFT_MOTOR_RVS ? (left_cmd < 0) : (left_cmd >= 0))
