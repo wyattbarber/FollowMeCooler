@@ -33,11 +33,16 @@ def main():
     ax.set_ylim(0, 1000)
     plt.draw()
 
-    data_id = "Scanner Data:"
-    with serial.Serial("COM9", 115200, timeout=None) as ser:
+    # data_id = "Scanner Data:"
+    data_id = ""
+    with serial.Serial("COM8", 115200, timeout=None) as ser:
         while ser.is_open:
             msg = ser.read_until(b"\n")
-            msg = msg.decode().strip('\r')
+            try:
+                msg = msg.decode().strip('\r')
+            except ValueError as e:
+                print(f"Invalid message: {str(e)}")
+
             if msg[:len(data_id)] == data_id:
                 angles, dist, path_angle = decode(msg[len(data_id):])
 

@@ -75,13 +75,13 @@ void pop_queue(Core1Msg* obj)
             oa_angle,
             oa_dist
         );
-        printf("Scanner Data:");
-        for(size_t i = 0; i < obj->scan_update.data.size(); ++i)
-        {
-            int theta_d = (i * 90) / obj->scan_update.data.size() - 45;
-            printf("%d:%f,", theta_d, obj->scan_update.data[i]);
-        }
-        printf(";%d\n", oa_angle);
+        // printf("Scanner Data:");
+        // for(size_t i = 0; i < obj->scan_update.data.size(); ++i)
+        // {
+        //     int theta_d = (i * 90) / obj->scan_update.data.size() - 45;
+        //     printf("%d:%f,", theta_d, obj->scan_update.data[i]);
+        // }
+        // printf(";%d\n", oa_angle);
     }
     else if(obj->is_robot_gps_update)
     {
@@ -307,7 +307,7 @@ int main()
                     drive_cmd = FOLLOW_THROTTLE_LOW;
                     Ks = K_NEAR;
                 }
-                else if(user_dist <= 50)
+                else if(user_dist <= 25.0)
                 {
                     drive_cmd = FOLLOW_THROTTLE_MID;
                     Ks = K_MID;

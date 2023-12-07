@@ -154,7 +154,7 @@ void main_core1()
 
             msg.scan_update.angle_of_path = scan_data->path_angle();
             msg.scan_update.min_dist = scan_data->min();
-            msg.scan_update.data = scan_data->data();
+            // msg.scan_update.data = scan_data->data();
             // auto w = scan_data->weights();
             // msg.scan_update.weight_left = w.first;
             // msg.scan_update.weight_right = w.second;

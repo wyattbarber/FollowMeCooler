@@ -3,10 +3,10 @@
 #include <vector>
 #include "scanner.hpp"
 
-const int SAMPLE_PERIOD_MS = 100;
-const int SERVO_PIN = 0;
-const int TRIG_PIN = 1;
-const int ECHO_PIN = 2;
+const int SAMPLE_PERIOD_MS = 50;
+const int SERVO_PIN = 20;
+const int TRIG_PIN = 10;
+const int ECHO_PIN = 11;
 ScannerData* data;
 uint64_t t_rise;
 
