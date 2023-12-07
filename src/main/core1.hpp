@@ -13,10 +13,13 @@
 
 #define US_PERIOD_MS 10 //! Period in ms between each ultrasonic measurement
 #define US_SAMPLES 50 //! Number of ultrasonic measurments per scan
-#define N_GPS 10 //! Report every Nth coordinate to minimize excess data sent between CPUs
+#define N_GPS 0 //! Report every Nth coordinate to minimize excess data sent between CPUs
 
 UIParser parser;
 
+/** Called when new data is available from the bluetooth module 
+ * 
+*/
 void ble_rx_handle()
 {
     while (uart_is_readable(BLE_UART))
@@ -33,6 +36,9 @@ MicroNMEA decoder(nmea_in, 128);
 bool new_gps = false;
 uint8_t n_gps = 0;
 
+/** Called when new data is available from the gps module 
+ * 
+*/
 void gps_rx_handle()
 {
     while(uart_is_readable(GPS_UART))
@@ -49,6 +55,9 @@ ScannerData *scan_data;
 uint64_t t_rise;
 bool scan_enabled = false;
 
+/** Called periodically to trigger a new measurment
+ * 
+*/
 bool sampler_callback(repeating_timer_t *rt)
 {
     if(scan_enabled)
@@ -58,6 +67,11 @@ bool sampler_callback(repeating_timer_t *rt)
     return true;
 }
 
+/** Called when the echo pin changes state
+ * 
+ * Calculates time-of-flight and distance, then
+ * increments the scanner to the next angle.
+*/
 void echo_callback(uint gpio, uint32_t events)
 {
     if (events & GPIO_IRQ_EDGE_FALL)
@@ -77,7 +91,7 @@ typedef struct {
     float weight_right;
     float weight_left;
     std::vector<float> data;
-} ScanMsg;
+} ScanMsg; // Data for core 0 on a scanner update
 
 typedef struct {
     long lat;
@@ -85,7 +99,7 @@ typedef struct {
     float course;
     float speed;
     bool fix;
-} GPSMsg;
+} GPSMsg; // Data for core 0 on a gps update
 
 typedef struct {
     long lat;
@@ -96,7 +110,7 @@ typedef struct {
     bool test_oa;
     long throttle;
     long steer;
-} ModeMsg;
+} ModeMsg; // Data for core 0 on a user command or location update
 
 typedef struct {
     ScanMsg scan_update;
@@ -107,9 +121,9 @@ typedef struct {
 
     ModeMsg user_update;
     bool is_user_update;
-} Core1Msg;
+} Core1Msg; // Complete update message to core 0
 
-queue_t queue_to_core0;
+queue_t queue_to_core0; // Message queue between cores
 
 
 void main_core1()
@@ -127,6 +141,7 @@ void main_core1()
     add_repeating_timer_ms(US_PERIOD_MS, sampler_callback, NULL, &timer);
     gpio_set_irq_enabled_with_callback(US_PIN_ECHO, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true, &echo_callback);
     
+    // Setup bluetooth UART
     uart_init(BLE_UART, 9600);
     gpio_set_function(BLE_TX, GPIO_FUNC_UART);
     gpio_set_function(BLE_RX, GPIO_FUNC_UART);
@@ -134,6 +149,7 @@ void main_core1()
     irq_set_enabled(BLE_IRQ, true);
     uart_set_irq_enables(BLE_UART, true, false);
 
+    // Setup gps UART
     uart_init(GPS_UART, 9600);
     gpio_set_function(GPS_TX, GPIO_FUNC_UART);
     gpio_set_function(GPS_RX, GPIO_FUNC_UART);
@@ -143,7 +159,10 @@ void main_core1()
 
     // Run loop endlessly
     while (true)
-    {
+    {   
+        // Checks for new data on each of the interfaces, 
+        // and pushes it to the queue if new data is available.
+        
         if(scan_data->new_data())
         {
             Core1Msg msg;

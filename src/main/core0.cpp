@@ -23,8 +23,8 @@
 #define FOLLOW_THROTTLE_LOW 5000
 
 #define K_NEAR 50 //! Proportional control constant for heading correction at close distance
-#define K_MID 35 //! Proportional control constant for heading correction at far distance
-#define K_FAR 20 //! Proportional control constant for heading correction at far distance
+#define K_MID 20 //! Proportional control constant for heading correction at far distance
+#define K_FAR 10 //! Proportional control constant for heading correction at far distance
 int Ks = K_NEAR; //! Currently used heading correction gain
 
 bool fix = false; //! Robot GPS has a planar position fix
@@ -45,7 +45,9 @@ uint slice_a, slice_b; //! Motor control PWM slice
 int drive_cmd; //! Forward/reverse component of throttle command
 int target_heading; //! Intended direction of driving
 
-
+/** Calculate throttle command based n distance from an object
+ * 
+*/
 int oa_throttle(float clearance)
 {
     if(clearance < OA_CLEAR_MIN)
@@ -64,10 +66,15 @@ int oa_throttle(float clearance)
 }
 
   
+/** Called when new data is popped from the queue
+ * 
+ * Checks the type of update, and sets the corresponding process variables.
+*/
 void pop_queue(Core1Msg* obj)
 {
     if(obj->is_scan_update)
     {
+        // Update obstable avoidance path
         oa_angle = obj->scan_update.angle_of_path;
         oa_dist = obj->scan_update.min_dist;
         printf(
@@ -85,25 +92,25 @@ void pop_queue(Core1Msg* obj)
     }
     else if(obj->is_robot_gps_update)
     {
+        // Calculate smoothed heading
         float new_robot_heading = nav::angle(
             robot_lat, obj->robot_gps_update.lat,
             robot_long, obj->robot_gps_update.lon
         );
         robot_heading = (0.7 * new_robot_heading) + (0.3 * robot_heading);
 
+        // Calculate smoothed speed
         float new_robot_speed = nav::dist(
             robot_lat, obj->robot_gps_update.lat,
             robot_long, obj->robot_gps_update.lon
         ) / static_cast<float>(time_us_64() - t_prev_gps);
         new_robot_speed *= 1E6; // Convert m/us to m/s   
         robot_speed = (0.7 * new_robot_speed) + (0.3 * robot_speed);
-
+        
+        // Set location data
         fix = obj->robot_gps_update.fix;
         robot_lat = obj->robot_gps_update.lat;
         robot_long = obj->robot_gps_update.lon;
-
-        user_heading = static_cast<int>(nav::angle(robot_lat, user_lat, robot_long, user_long));
-        user_dist = static_cast<int>(nav::dist(robot_lat, user_lat, robot_long, user_long));
 
         printf(
             "Robot Position Update: fix %d %dx%d, %d m from user at %d, %f m/s at %f degrees heading\n",
@@ -134,10 +141,20 @@ void pop_queue(Core1Msg* obj)
 }
 
 
-uint8_t x_reg_buf[] = {COMP_X_REG};
-uint8_t x_reg[] = {0, 0};
-uint8_t y_reg_buf[] = {COMP_Y_REG};
-uint8_t y_reg[] = {0, 0};
+// uint8_t x_reg_buf[] = {COMP_X_REG};
+// uint8_t x_reg[] = {0, 0};
+// uint8_t y_reg_buf[] = {COMP_Y_REG};
+// uint8_t y_reg[] = {0, 0};
+
+/** Called periodically to update motor commands
+ * 
+ * Sets motor throttle based on drive command and error from 
+ * the target heading. 
+ * 
+ * Overrides heading based control when user selects manual control
+ * 
+ * Keeps motors from driving in reverse, which will lock up casters
+*/
 bool motor_callback(repeating_timer_t *rt)
 {
     // Read I2C magnetometer data
@@ -155,9 +172,18 @@ bool motor_callback(repeating_timer_t *rt)
 
     // Calculate error in heading
     int heading_error = 0;
-    if(drive_cmd != 0)
+    if(drive_cmd != 0) // Don't set steer commands if overall drive command is 0
     {
         heading_error = static_cast<int>(robot_heading) - target_heading;
+        // Limit error to +- 180 degrees
+        while(heading_error > 180)
+        {
+            heading_error -= 180;
+        }
+        while(heading_error < -180)
+        {
+            heading_error += 180;
+        }
     }
     int steer_cmd = -(heading_error * Ks);
 
@@ -276,8 +302,10 @@ int main()
 
     while(true)
     {
+        // Check if there is new data on the queue from core 1
         if(queue_try_remove(&queue_to_core0, &msg))
         {
+            // Data available, update this core
             pop_queue(&msg);
         }
                  
@@ -289,15 +317,19 @@ int main()
 
         else if(mode.drive) // Drive towards user
         {
-            if(oa_dist < OA_CLEAR_MAX)
+            if(oa_dist < OA_CLEAR_MAX) // Obstacle detected
             {
                 drive_cmd = oa_throttle(oa_dist);
                 target_heading = static_cast<int>(robot_heading) - oa_angle;
                 Ks = K_NEAR;
             }
-            else 
-            {
+            else // Drive to target
+            {                
+                user_heading = static_cast<int>(nav::angle(robot_lat, user_lat, robot_long, user_long));
+                user_dist = static_cast<int>(nav::dist(robot_lat, user_lat, robot_long, user_long));
                 target_heading = user_heading;
+
+                // Set speed based on distance. Drive faster if further away.
                 if(user_dist <= 5.0)
                 {
                     drive_cmd = 0;
@@ -305,7 +337,7 @@ int main()
                 else if(user_dist <= 10.0)
                 {
                     drive_cmd = FOLLOW_THROTTLE_LOW;
-                    Ks = K_NEAR;
+                    Ks = K_MID;
                 }
                 else if(user_dist <= 25.0)
                 {
@@ -334,6 +366,7 @@ int main()
 
         else
         {
+            // Shouldn't ever reach here
             drive_cmd = 0;
             mode.hold = true;
         }
